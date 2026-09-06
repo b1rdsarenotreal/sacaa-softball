@@ -189,7 +189,7 @@ function renderSchedule() {
 
     const awayDiv = document.createElement('div');
     awayDiv.className = 'game-team' + (awayWon ? ' winner' : '');
-    awayDiv.innerHTML = `<span>${g.away}</span><span class="game-score">${g.played ? g.result.awayScore : ''}</span>`;
+    awayDiv.innerHTML = `${teamLink(g.away)}<span class="game-score">${g.played ? g.result.awayScore : ''}</span>`;
 
     const vs = document.createElement('div');
     vs.className = 'game-vs';
@@ -197,7 +197,7 @@ function renderSchedule() {
 
     const homeDiv = document.createElement('div');
     homeDiv.className = 'game-team' + (homeWon ? ' winner' : '');
-    homeDiv.innerHTML = `<span>${g.home}</span><span class="game-score">${g.played ? g.result.homeScore : ''}</span>`;
+    homeDiv.innerHTML = `${teamLink(g.home)}<span class="game-score">${g.played ? g.result.homeScore : ''}</span>`;
 
     const tag = document.createElement('div');
     tag.className = 'game-tag';
@@ -240,7 +240,7 @@ function renderStandings() {
       rows.forEach((r) => {
         const tr = document.createElement('tr');
         const rd = r.runDiff > 0 ? `+${r.runDiff}` : `${r.runDiff}`;
-        tr.innerHTML = `<td>${r.name}</td><td>${r.confWins}-${r.confLosses}</td><td>${r.wins}-${r.losses}</td><td>${rd}</td>`;
+        tr.innerHTML = `<td>${teamLink(r.name)}</td><td>${r.confWins}-${r.confLosses}</td><td>${r.wins}-${r.losses}</td><td>${rd}</td>`;
         tbody.appendChild(tr);
       });
       table.appendChild(tbody);
@@ -263,7 +263,7 @@ function renderRankings() {
     li.className = 'rank-row';
     li.innerHTML = `
       <span class="rank-num">${r.rank}</span>
-      <span class="rank-team">${r.name}<span class="rank-conf">${r.conference}</span></span>
+      <span class="rank-team">${teamLink(r.name)}<span class="rank-conf">${r.conference}</span></span>
       <span class="rank-record">${r.record}</span>
       <span class="rank-rpi">${r.rpi.toFixed(3)}</span>
     `;
@@ -280,7 +280,7 @@ function renderMatchRow(m, container, prefix) {
 
   if (!m.a || !m.b) {
     const solo = m.a || m.b;
-    row.innerHTML = `<span>${solo ? `${solo.name} advances (bye)` : 'TBD'}</span><span class="bracket-vs"></span><span></span>`;
+    row.innerHTML = `<span>${solo ? `${teamLink(solo.name)} advances (bye)` : 'TBD'}</span><span class="bracket-vs"></span><span></span>`;
     container.appendChild(row);
     return;
   }
@@ -296,9 +296,9 @@ function renderMatchRow(m, container, prefix) {
   }
 
   row.innerHTML = `
-    <span class="${aWin ? 'winner' : ''}">${prefix ? `<span class="rank-conf">${prefix}</span> ` : ''}${m.a.name}</span>
+    <span class="${aWin ? 'winner' : ''}">${prefix ? `<span class="rank-conf">${prefix}</span> ` : ''}${teamLink(m.a.name)}</span>
     <span class="bracket-vs">${scoreText}</span>
-    <span class="${!aWin ? 'winner' : ''}">${m.b.name}</span>
+    <span class="${!aWin ? 'winner' : ''}">${teamLink(m.b.name)}</span>
   `;
   container.appendChild(row);
 }
@@ -330,7 +330,7 @@ function renderPostseason() {
   conferenceTournaments.forEach((ct) => {
     const confWrap = document.createElement('div');
     confWrap.className = 'conf-tourney-block';
-    confWrap.innerHTML = `<div class="conf-champ-line"><strong>${ct.conference}</strong> champion: <span class="winner">${ct.champion.name}</span></div>`;
+    confWrap.innerHTML = `<div class="conf-champ-line"><strong>${ct.conference}</strong> champion: <span class="winner">${teamLink(ct.champion.name)}</span></div>`;
     ct.rounds.forEach((round, i) => {
       const wrap = document.createElement('div');
       wrap.className = 'bracket-round';
@@ -356,7 +356,7 @@ function renderPostseason() {
   const tbody = document.createElement('tbody');
   field.forEach((f) => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${f.seed}</td><td>${f.name}</td><td>${f.berth}</td><td>${f.rpi.toFixed(3)}</td>`;
+    tr.innerHTML = `<td>${f.seed}</td><td>${teamLink(f.name)}</td><td>${f.berth}</td><td>${f.rpi.toFixed(3)}</td>`;
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
@@ -425,12 +425,93 @@ function renderTeams() {
     const card = document.createElement('div');
     card.className = 'team-card';
     card.innerHTML = `
-      <h4>${t.name}</h4>
+      <h4>${teamLink(t.name)}</h4>
       <p>${t.conference} · ${t.coach}</p>
       <div class="stat-line">AVG ${t.batting.avg.toFixed(3)} · OBP ${t.batting.obp.toFixed(3)} · SLG ${t.batting.slg.toFixed(3)}</div>
       <div class="stat-line">ERA ${t.pitching.era.toFixed(2)} · WHIP ${t.pitching.whip.toFixed(2)}</div>
     `;
     grid.appendChild(card);
+  });
+}
+
+function teamLink(name) {
+  return `<span class="team-link" data-team="${name}">${name}</span>`;
+}
+
+function openTeamModal(name) {
+  const team = TEAMS_BY_NAME[name];
+  if (!team) return;
+
+  const standings = computeStandings(TEAMS, state.games);
+  const row = standings.find((r) => r.name === name) || {
+    wins: 0, losses: 0, confWins: 0, confLosses: 0, runDiff: 0,
+  };
+
+  const games = state.games
+    .filter((g) => g.home === name || g.away === name)
+    .sort((a, b) => a.week - b.week || a.gameOfSeries - b.gameOfSeries);
+
+  const gameRows = games.map((g) => {
+    const isHome = g.home === name;
+    const opponent = isHome ? g.away : g.home;
+    const atVs = isHome ? 'vs' : '@';
+    if (!g.played) {
+      return `
+        <div class="tp-game-row">
+          <span class="tp-wk">wk ${g.week}</span>
+          <span>${atVs} ${teamLink(opponent)}</span>
+          <span class="tp-score">—</span>
+          <span class="tp-tag">${g.conferenceGame ? 'conf' : 'non-conf'}</span>
+        </div>`;
+    }
+    const ownScore = isHome ? g.result.homeScore : g.result.awayScore;
+    const oppScore = isHome ? g.result.awayScore : g.result.homeScore;
+    const won = ownScore > oppScore;
+    return `
+      <div class="tp-game-row">
+        <span class="tp-wk">wk ${g.week}</span>
+        <span>${atVs} ${teamLink(opponent)}</span>
+        <span class="tp-score"><span class="${won ? 'tp-result-w' : 'tp-result-l'}">${won ? 'W' : 'L'}</span> ${ownScore}-${oppScore}</span>
+        <span class="tp-tag">${g.conferenceGame ? 'conf' : 'non-conf'}</span>
+      </div>`;
+  }).join('');
+
+  const rd = row.runDiff > 0 ? `+${row.runDiff}` : `${row.runDiff}`;
+
+  document.getElementById('modalContent').innerHTML = `
+    <div class="tp-header">
+      <h2>${team.name}</h2>
+      <p class="tp-sub">${team.conference} · Head Coach ${team.coach}</p>
+    </div>
+    <div class="tp-records">
+      <div class="tp-record-box"><span class="num">${row.wins}-${row.losses}</span><span class="label">overall</span></div>
+      <div class="tp-record-box"><span class="num">${row.confWins}-${row.confLosses}</span><span class="label">conference</span></div>
+      <div class="tp-record-box"><span class="num">${rd}</span><span class="label">run diff</span></div>
+    </div>
+    <div class="tp-stats">
+      AVG ${team.batting.avg.toFixed(3)} · OBP ${team.batting.obp.toFixed(3)} · SLG ${team.batting.slg.toFixed(3)}
+      &nbsp;|&nbsp; ERA ${team.pitching.era.toFixed(2)} · WHIP ${team.pitching.whip.toFixed(2)}
+    </div>
+    <div class="tp-schedule-title">Schedule (${games.length} games)</div>
+    <div class="tp-game-list">${gameRows || '<p class="view-note">No games scheduled.</p>'}</div>
+  `;
+
+  document.getElementById('teamModalOverlay').classList.add('open');
+}
+
+function closeTeamModal() {
+  document.getElementById('teamModalOverlay').classList.remove('open');
+}
+
+function wireTeamModal() {
+  document.addEventListener('click', (e) => {
+    const link = e.target.closest('.team-link');
+    if (link) { openTeamModal(link.dataset.team); return; }
+    if (e.target.id === 'teamModalOverlay') closeTeamModal();
+  });
+  document.getElementById('modalClose').addEventListener('click', closeTeamModal);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeTeamModal();
   });
 }
 
@@ -473,6 +554,7 @@ async function init() {
   saveState();
   wireTabs();
   wireControls();
+  wireTeamModal();
   renderAll();
 }
 

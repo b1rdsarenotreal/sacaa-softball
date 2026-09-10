@@ -690,6 +690,8 @@ main {
   margin: 0;
 }
 
+.tp-tiers { margin-top: 2px; font-size: 0.82rem; }
+
 .tp-records {
   display: flex;
   gap: 20px;

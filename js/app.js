@@ -1,6 +1,6 @@
 import { generateSchedule } from './engine/schedule.js';
 import { computeLeagueAverages, simulateGame } from './engine/sim.js';
-import { generateRosters, buildGameRoster, pickStarterForGame } from './engine/roster.js';
+import { generateRosters, buildGameRoster, pickStarterForGame, computeProgramTiers } from './engine/roster.js';
 import { computeStandings, standingsByConference, overallStandings } from './engine/standings.js';
 import { computeRankings, top25 } from './engine/rankings.js';
 import { runConferenceTournament, selectField, runRegionals, runWorldSeries, roundLabel } from './engine/postseason.js';
@@ -11,6 +11,7 @@ const LOGO_STORAGE_KEY = 'sacaa-custom-logos-v1';
 let TEAMS = [];
 let TEAMS_BY_NAME = {};
 let CONFERENCES = {};
+let PROGRAM_TIERS = {};
 let LEAGUE = null;
 let state = null;
 let customLogos = {};
@@ -114,6 +115,7 @@ async function loadTeams() {
   TEAMS = await teamsRes.json();
   CONFERENCES = await confRes.json();
   TEAMS_BY_NAME = Object.fromEntries(TEAMS.map((t) => [t.name, t]));
+  PROGRAM_TIERS = computeProgramTiers(TEAMS);
   LEAGUE = computeLeagueAverages(TEAMS);
 }
 
@@ -594,13 +596,13 @@ function renderTeams() {
     const card = document.createElement('div');
     card.className = 'team-card';
     if (t.colors) card.style.setProperty('--team-primary', t.colors.primary);
+    const tiers = PROGRAM_TIERS[t.name] || {};
     card.innerHTML = `
       ${teamBadge(t.name, 40)}
       <div class="team-card-body">
         <h4>${teamLink(t.name, { noBadge: true })}</h4>
         <p>${t.conference} · ${t.coach}</p>
-        <div class="stat-line">AVG ${t.batting.avg.toFixed(3)} · OBP ${t.batting.obp.toFixed(3)} · SLG ${t.batting.slg.toFixed(3)}</div>
-        <div class="stat-line">ERA ${t.pitching.era.toFixed(2)} · WHIP ${t.pitching.whip.toFixed(2)}</div>
+        <div class="stat-line">Historically: <strong>${tiers.battingTier || '—'}</strong> hitting, <strong>${tiers.pitchingTier || '—'}</strong> pitching</div>
       </div>
     `;
     grid.appendChild(card);
@@ -717,6 +719,7 @@ function openTeamModal(name) {
       <div>
         <h2>${team.name}</h2>
         <p class="tp-sub">${team.conference} · Head Coach ${team.coach}</p>
+        <p class="tp-sub tp-tiers">Historically: ${PROGRAM_TIERS[team.name]?.battingTier || '—'} hitting · ${PROGRAM_TIERS[team.name]?.pitchingTier || '—'} pitching</p>
         <p class="tp-logo-actions">
           <button class="link-btn" data-upload-team="${team.name}">Upload logo</button>
           ${customLogos[team.name] ? `· <button class="link-btn" data-reset-logo-team="${team.name}">Reset to default</button>` : ''}

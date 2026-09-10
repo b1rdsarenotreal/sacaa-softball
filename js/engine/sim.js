@@ -364,10 +364,15 @@ export function simulateGame(awayGameRoster, homeGameRoster, league, seed) {
       break;
     }
     inning += 1;
-    if (inning > 25) break;
+    if (inning > 30) break; // safety valve -- see winnerSide comment below
   }
 
-  const winnerSide = awayScore > homeScore ? 'away' : 'home';
+  // Under real ratings this essentially never happens (both teams would
+  // need to go scoreless for 30 straight innings), but if the safety valve
+  // above ever does cut off a still-tied game, don't silently hand it to
+  // the home team by treating "not greater" as "home wins" -- flip a coin
+  // on the same seeded rng so it's at least honest and still reproducible.
+  const winnerSide = awayScore === homeScore ? (rng() < 0.5 ? 'away' : 'home') : (awayScore > homeScore ? 'away' : 'home');
   const winState = winnerSide === 'away' ? awayState : homeState;
   const loseState = winnerSide === 'away' ? homeState : awayState;
 

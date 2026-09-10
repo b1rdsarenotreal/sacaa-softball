@@ -155,38 +155,108 @@ function nextId(teamName) {
   return `${teamName.replace(/\s+/g, '')}-${playerCounter}`;
 }
 
-// --- Team talent baselines (20-80 scale, mean 50) -------------------------
-// Anchored to each team's real stat line so overall team strength survives
-// the switch to individual ratings, via a z-score against the league.
-
 function mean(arr) { return arr.reduce((a, b) => a + b, 0) / arr.length; }
 function stdev(arr) {
   const m = mean(arr);
   return Math.sqrt(mean(arr.map((x) => (x - m) ** 2))) || 1;
 }
 
-export function computeTeamTalents(teams) {
-  const wobas = teams.map((t) => t.batting.woba);
+// --- Team talent baselines (20-80 scale, mean 50) -------------------------
+// The imported stats (teams.json batting/pitching) are treated as a
+// *historical* signal only -- which programs are traditionally strong vs.
+// weak -- not as literal numbers to simulate off of. We rank every team by
+// that signal and map RANK (percentile) to a talent baseline, rather than
+// using the raw stat gaps between teams. This means a team's actual
+// in-sim talent comes from where it falls in the league pecking order, not
+// from how large an exact ERA or wOBA difference happens to be.
+
+// Returns { [teamName]: { battingPercentile, pitchingPercentile } }, each in
+// [0, 1], 1 = best in the league. Batting and pitching are ranked
+// separately, so a program can be historically known for one more than the
+// other, same as real programs are.
+function computeHistoricalPercentiles(teams) {
+  // A stat of exactly 0 almost always means "missing from the source data",
+  // not "literally zero" -- a team with era:0 would otherwise read as the
+  // best pitching staff ever assembled, and one with woba:0 as the worst
+  // hitting team ever, producing a degenerate roster (this happened for
+  // real with three teams whose source spreadsheet rows were blank). Treat
+  // exact zeros as missing and fall back to the league mean before ranking.
+  const meanIgnoringZero = (arr) => {
+    const nonZero = arr.filter((v) => v);
+    return mean(nonZero.length > 0 ? nonZero : arr);
+  };
+  const safe = (val, fallback) => (val ? val : fallback);
+
+  const wobaFallback = meanIgnoringZero(teams.map((t) => t.batting.woba));
+  const eraFallback = meanIgnoringZero(teams.map((t) => t.pitching.era));
+  const whipFallback = meanIgnoringZero(teams.map((t) => t.pitching.whip));
+
+  const wobas = teams.map((t) => safe(t.batting.woba, wobaFallback));
   const wobaMean = mean(wobas);
   const wobaSd = stdev(wobas);
-
-  const eras = teams.map((t) => t.pitching.era);
-  const whips = teams.map((t) => t.pitching.whip);
+  const eras = teams.map((t) => safe(t.pitching.era, eraFallback));
+  const whips = teams.map((t) => safe(t.pitching.whip, whipFallback));
   const eraMean = mean(eras); const eraSd = stdev(eras);
   const whipMean = mean(whips); const whipSd = stdev(whips);
 
+  const scored = teams.map((t) => {
+    const woba = safe(t.batting.woba, wobaFallback);
+    const era = safe(t.pitching.era, eraFallback);
+    const whip = safe(t.pitching.whip, whipFallback);
+    const battingZ = (woba - wobaMean) / wobaSd;
+    const eraZ = (era - eraMean) / eraSd; // lower era = better = negative z is good
+    const whipZ = (whip - whipMean) / whipSd;
+    return { name: t.name, battingZ, pitchingZ: -(eraZ + whipZ) / 2 };
+  });
+
+  const n = teams.length;
+  const result = {};
+  teams.forEach((t) => { result[t.name] = {}; });
+  [...scored].sort((a, b) => a.battingZ - b.battingZ)
+    .forEach((s, i) => { result[s.name].battingPercentile = n > 1 ? i / (n - 1) : 0.5; });
+  [...scored].sort((a, b) => a.pitchingZ - b.pitchingZ)
+    .forEach((s, i) => { result[s.name].pitchingPercentile = n > 1 ? i / (n - 1) : 0.5; });
+  return result;
+}
+
+const TALENT_MIN = 28;
+const TALENT_RANGE = 44; // talent baseline spans TALENT_MIN..TALENT_MIN+TALENT_RANGE
+
+export function computeTeamTalents(teams) {
+  const percentiles = computeHistoricalPercentiles(teams);
   const talents = {};
   teams.forEach((t) => {
-    const battingZ = (t.batting.woba - wobaMean) / wobaSd;
-    const eraZ = (t.pitching.era - eraMean) / eraSd; // lower era = better = negative z is good
-    const whipZ = (t.pitching.whip - whipMean) / whipSd;
-    const pitchingZ = -(eraZ + whipZ) / 2;
+    const p = percentiles[t.name];
     talents[t.name] = {
-      batting: clamp(50 + battingZ * 10, 22, 78),
-      pitching: clamp(50 + pitchingZ * 10, 22, 78),
+      batting: TALENT_MIN + p.battingPercentile * TALENT_RANGE,
+      pitching: TALENT_MIN + p.pitchingPercentile * TALENT_RANGE,
     };
   });
   return talents;
+}
+
+// Human label for a percentile, used for the "historically" tag shown on
+// team cards -- a plain-language echo of the ranking above, not a claim
+// about the current season's form.
+export function tierLabel(percentile) {
+  if (percentile >= 0.85) return 'Elite';
+  if (percentile >= 0.65) return 'Strong';
+  if (percentile >= 0.35) return 'Average';
+  if (percentile >= 0.15) return 'Developing';
+  return 'Rebuilding';
+}
+
+export function computeProgramTiers(teams) {
+  const percentiles = computeHistoricalPercentiles(teams);
+  const tiers = {};
+  teams.forEach((t) => {
+    const p = percentiles[t.name];
+    tiers[t.name] = {
+      battingTier: tierLabel(p.battingPercentile),
+      pitchingTier: tierLabel(p.pitchingPercentile),
+    };
+  });
+  return tiers;
 }
 
 function genHitterRatings(battingTalent, rng) {

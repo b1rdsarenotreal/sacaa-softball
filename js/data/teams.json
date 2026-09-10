@@ -732,22 +732,22 @@
     "conference": "PWC",
     "coach": "Brie Campbell",
     "batting": {
-      "avg": 0,
-      "obp": 0,
-      "slg": 0,
-      "ops": 0,
-      "woba": 0,
-      "iso": 0,
-      "rpg": 0
+      "avg": 0.29,
+      "obp": 0.367,
+      "slg": 0.424,
+      "ops": 0.79,
+      "woba": 0.336,
+      "iso": 0.134,
+      "rpg": 4.738
     },
     "pitching": {
-      "era": 0,
-      "whip": 0,
-      "k_per7": 0,
-      "k_bb": 0
+      "era": 3.725,
+      "whip": 1.516,
+      "k_per7": 4.275,
+      "k_bb": 1.68
     },
     "fielding": {
-      "pct": 0
+      "pct": 0.962
     },
     "colors": {
       "primary": "#6b2ba0",
@@ -816,22 +816,22 @@
     "conference": "PWC",
     "coach": "McKinsey Thorpe",
     "batting": {
-      "avg": 0,
-      "obp": 0,
-      "slg": 0,
-      "ops": 0,
-      "woba": 0,
-      "iso": 0,
-      "rpg": 0
+      "avg": 0.29,
+      "obp": 0.367,
+      "slg": 0.424,
+      "ops": 0.79,
+      "woba": 0.336,
+      "iso": 0.134,
+      "rpg": 4.738
     },
     "pitching": {
-      "era": 0,
-      "whip": 0,
-      "k_per7": 0,
-      "k_bb": 0
+      "era": 3.725,
+      "whip": 1.516,
+      "k_per7": 4.275,
+      "k_bb": 1.68
     },
     "fielding": {
-      "pct": 0
+      "pct": 0.962
     },
     "colors": {
       "primary": "#671d8f",
@@ -1460,22 +1460,22 @@
     "conference": "PWC",
     "coach": "Nicole Thomas",
     "batting": {
-      "avg": 0,
-      "obp": 0,
-      "slg": 0,
-      "ops": 0,
-      "woba": 0,
-      "iso": 0,
-      "rpg": 0
+      "avg": 0.29,
+      "obp": 0.367,
+      "slg": 0.424,
+      "ops": 0.79,
+      "woba": 0.336,
+      "iso": 0.134,
+      "rpg": 4.738
     },
     "pitching": {
-      "era": 0,
-      "whip": 0,
-      "k_per7": 0,
-      "k_bb": 0
+      "era": 3.725,
+      "whip": 1.516,
+      "k_per7": 4.275,
+      "k_bb": 1.68
     },
     "fielding": {
-      "pct": 0
+      "pct": 0.962
     },
     "colors": {
       "primary": "#5520b0",

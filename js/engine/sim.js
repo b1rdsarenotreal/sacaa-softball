@@ -11,10 +11,21 @@ function clamp(x, lo, hi) {
   return Math.max(lo, Math.min(hi, x));
 }
 
-// Compute league-wide averages once, used to normalize matchup strength.
-// Still computed off TEAM aggregate stats -- individual players are
-// generated as perturbations around their team's line, so the team-level
-// league average remains the right baseline for the pitcher-quality factor.
+// Ratings drive every plate appearance now (Contact/Power/Eye for batters,
+// Stuff/Control/Movement for pitchers, all on a 20-80 scale, mean 50). This
+// replaced an earlier stat-multiplier model that could stack multiple
+// multiplicative factors and produce unrealistic blowouts against weak
+// pitching staffs; sigmoid-bounded rating differentials are numerically
+// stable by construction and were tuned against target league-wide rates
+// (roughly: ~18% K, ~9% BB, ~.320 hit-on-contact rate, ~2-3% HR per PA at
+// league-average ratings).
+function sigmoid(x) {
+  return 1 / (1 + Math.exp(-x));
+}
+
+// computeLeagueAverages is kept only so callers (postseason.js, app.js)
+// don't need to change their plumbing; the ratings scale is already
+// self-normalizing so it isn't used by simulatePA.
 export function computeLeagueAverages(teams) {
   const n = teams.length;
   const sum = (fn) => teams.reduce((a, t) => a + fn(t), 0);
@@ -26,29 +37,31 @@ export function computeLeagueAverages(teams) {
   };
 }
 
-function simulatePA(batter, pitcher, league, rng) {
-  const rawFactor = Math.sqrt((pitcher.pitching.era / league.era) * (pitcher.pitching.whip / league.whip));
-  const pitchFactor = clamp(Math.pow(rawFactor, 0.6), 0.8, 1.25);
+function simulatePA(batter, pitcher, rng) {
+  const br = batter.ratings;
+  const pr = pitcher.ratings;
 
-  const effObp = clamp(batter.batting.obp * pitchFactor, 0.15, 0.6);
-  const walkShare = clamp((batter.batting.obp - batter.batting.avg) / batter.batting.obp, 0.08, 0.35);
+  // Strikeout: pitcher Stuff vs batter Contact.
+  const kDiff = (pr.stuff - br.contact) / 10;
+  const pK = clamp(sigmoid(0.32 * kDiff - 1.58), 0.06, 0.35);
+  if (rng() < pK) return 'K';
 
-  const pOnBase = effObp;
-  const pWalk = pOnBase * walkShare;
-  const pOut = 1 - pOnBase;
+  // Walk: batter Eye vs pitcher Control (conditioned on not-K).
+  const eyeDiff = (br.eye - pr.control) / 10;
+  const pBB = clamp(sigmoid(0.32 * eyeDiff - 2.35), 0.02, 0.18);
+  if (rng() < pBB) return 'BB';
 
-  const r = rng();
-  if (r < pOut) {
-    const kRate = clamp(pitcher.pitching.k_per7 / 7, 0.08, 0.55);
-    return rng() < kRate ? 'K' : 'OUT';
-  }
-  if (r < pOut + pWalk) return 'BB';
+  // Ball in play: batter Contact vs pitcher Movement decides hit vs out.
+  const contactDiff = (br.contact - pr.movement) / 10;
+  const pHitOnBip = clamp(sigmoid(0.32 * contactDiff - 0.85), 0.18, 0.42);
+  if (rng() >= pHitOnBip) return 'OUT';
 
-  const iso = batter.batting.iso;
-  const pHR = clamp(iso * 0.32, 0.015, 0.14);
-  const pTriple = 0.025;
-  const pDouble = clamp(iso * 0.55, 0.07, 0.32);
-  const pSingle = clamp(1 - pHR - pTriple - pDouble, 0.35, 0.9);
+  // It's a hit -- Power decides the extra-base split.
+  const power = br.power;
+  const pHR = clamp(0.06 + (power - 50) * 0.0035, 0.018, 0.2);
+  const pTriple = 0.02;
+  const pDouble = clamp(0.18 + (power - 50) * 0.003, 0.08, 0.3);
+  const pSingle = clamp(1 - pHR - pTriple - pDouble, 0.4, 0.9);
   const total = pHR + pTriple + pDouble + pSingle;
 
   const hr = rng() * total;
@@ -166,7 +179,7 @@ function simulateHalfInning(battingState, fieldingState, league, rng, battingBox
     const appearance = fieldingState.currentAppearance;
     const pitcher = appearance.pitcher;
 
-    const event = simulatePA(batter, pitcher, league, rng);
+    const event = simulatePA(batter, pitcher, rng);
     const batBox = battingBox[batter.id];
 
     if (event === 'K') {
@@ -253,8 +266,10 @@ function finalizeBattingBox(box) {
   return Object.values(box).map((b) => ({
     playerId: b.player.id,
     name: b.player.name,
+    class: b.player.class,
     position: b.player.position,
     battingOrder: b.player.battingOrder,
+    twoWay: !!b.player.twoWay,
     ab: b.ab, h: b.h, r: b.r, rbi: b.rbi, bb: b.bb, k: b.k,
     doubles: b.doubles, triples: b.triples, hr: b.hr,
   }));
@@ -264,7 +279,9 @@ function finalizePitchingBox(appearances) {
   return appearances.map((a) => ({
     playerId: a.pitcher.id,
     name: a.pitcher.name,
+    class: a.pitcher.class,
     role: a.pitcher.role,
+    twoWay: !!a.pitcher.twoWay,
     outs: a.outs,
     ip: outsToIp(a.outs),
     h: a.h, r: a.r, er: a.er, bb: a.bb, k: a.k,

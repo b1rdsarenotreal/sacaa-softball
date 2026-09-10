@@ -153,7 +153,7 @@ function computeSeasonStatsForTeam(teamName) {
       result.boxscore[side].batting.forEach((b) => {
         if (!battingTotals[b.playerId]) {
           battingTotals[b.playerId] = {
-            name: b.name, position: b.position, battingOrder: b.battingOrder,
+            name: b.name, class: b.class, position: b.position, battingOrder: b.battingOrder, twoWay: b.twoWay,
             ab: 0, h: 0, r: 0, rbi: 0, bb: 0, k: 0, doubles: 0, triples: 0, hr: 0,
           };
         }
@@ -163,7 +163,7 @@ function computeSeasonStatsForTeam(teamName) {
       });
       result.boxscore[side].pitching.forEach((p) => {
         if (!pitchingTotals[p.playerId]) {
-          pitchingTotals[p.playerId] = { name: p.name, role: p.role, outs: 0, h: 0, r: 0, er: 0, bb: 0, k: 0, w: 0, l: 0, sv: 0 };
+          pitchingTotals[p.playerId] = { name: p.name, class: p.class, role: p.role, twoWay: p.twoWay, outs: 0, h: 0, r: 0, er: 0, bb: 0, k: 0, w: 0, l: 0, sv: 0 };
         }
         const t = pitchingTotals[p.playerId];
         t.outs += p.outs; t.h += p.h; t.r += p.r; t.er += p.er; t.bb += p.bb; t.k += p.k;
@@ -546,10 +546,11 @@ function openTeamModal(name) {
 
   const rd = row.runDiff > 0 ? `+${row.runDiff}` : `${row.runDiff}`;
   const seasonStats = computeSeasonStatsForTeam(name);
+  const roster = state.rosters[name];
 
   const battingRows = seasonStats.batting.map((b) => `
     <tr>
-      <td>${b.battingOrder}. ${b.name}</td><td>${b.position}</td>
+      <td>${b.battingOrder}. ${b.name}${b.twoWay ? ' <span class="two-way-tag">TW</span>' : ''}</td><td>${b.class}</td><td>${b.position}</td>
       <td>${b.ab}</td><td>${b.h}</td><td>${b.r}</td><td>${b.rbi}</td><td>${b.bb}</td><td>${b.k}</td>
       <td>${b.hr}</td><td>${b.ab > 0 ? (b.h / b.ab).toFixed(3).replace(/^0/, '') : '.000'}</td>
     </tr>`).join('');
@@ -560,10 +561,29 @@ function openTeamModal(name) {
     const whip = p.outs > 0 ? ((p.bb + p.h) / (p.outs / 3)).toFixed(2) : '0.00';
     return `
     <tr>
-      <td>${p.role} ${p.name}</td><td>${p.w}-${p.l}${p.sv ? `, ${p.sv}sv` : ''}</td>
+      <td>${p.role} ${p.name}${p.twoWay ? ' <span class="two-way-tag">TW</span>' : ''}</td><td>${p.class}</td><td>${p.w}-${p.l}${p.sv ? `, ${p.sv}sv` : ''}</td>
       <td>${ip}</td><td>${p.h}</td><td>${p.er}</td><td>${p.bb}</td><td>${p.k}</td><td>${era}</td><td>${whip}</td>
     </tr>`;
   }).join('');
+
+  // Full 25-man roster (independent of whether they've recorded a stat line
+  // yet) -- lineup + bench hitters, then the full pitching staff.
+  const rosterHitterRows = [...roster.lineup, ...roster.bench].map((p) => `
+    <tr>
+      <td>${p.name}${p.twoWay ? ' <span class="two-way-tag">TW</span>' : ''}</td><td>${p.class}</td><td>${p.position}</td>
+      <td>${p.ratings.contact}</td><td>${p.ratings.power}</td><td>${p.ratings.eye}</td>
+    </tr>`).join('');
+  const rosterPitcherRows = roster.pitchers.map((p) => `
+    <tr>
+      <td>${p.name}${p.twoWay ? ' <span class="two-way-tag">TW</span>' : ''}</td><td>${p.class}</td><td>${p.role}</td>
+      <td>${p.ratings.stuff}</td><td>${p.ratings.control}</td><td>${p.ratings.movement}</td>
+    </tr>`).join('');
+
+  const rosterUniqueCount = new Set([
+    ...roster.lineup.map((p) => p.id),
+    ...roster.bench.map((p) => p.id),
+    ...roster.pitchers.map((p) => p.id),
+  ]).size;
 
   document.getElementById('modalContent').innerHTML = `
     <div class="tp-header">
@@ -575,20 +595,28 @@ function openTeamModal(name) {
       <div class="tp-record-box"><span class="num">${row.confWins}-${row.confLosses}</span><span class="label">conference</span></div>
       <div class="tp-record-box"><span class="num">${rd}</span><span class="label">run diff</span></div>
     </div>
-    <div class="tp-stats">
-      AVG ${team.batting.avg.toFixed(3)} · OBP ${team.batting.obp.toFixed(3)} · SLG ${team.batting.slg.toFixed(3)}
-      &nbsp;|&nbsp; ERA ${team.pitching.era.toFixed(2)} · WHIP ${team.pitching.whip.toFixed(2)}
+
+    <div class="tp-schedule-title">Roster (${rosterUniqueCount}) <span class="view-note">ratings on a 20-80 scale, 50 = league average</span></div>
+    <div class="tp-roster-tables">
+      <table class="standings-table tp-mini-table">
+        <thead><tr><th>Hitter</th><th>Cl</th><th>Pos</th><th>Contact</th><th>Power</th><th>Eye</th></tr></thead>
+        <tbody>${rosterHitterRows}</tbody>
+      </table>
+      <table class="standings-table tp-mini-table">
+        <thead><tr><th>Pitcher</th><th>Cl</th><th>Role</th><th>Stuff</th><th>Control</th><th>Movement</th></tr></thead>
+        <tbody>${rosterPitcherRows}</tbody>
+      </table>
     </div>
 
     ${games.some((g) => g.played) ? `
-    <div class="tp-schedule-title">Roster — Season Stats</div>
+    <div class="tp-schedule-title">Season Stats</div>
     <div class="tp-roster-tables">
       <table class="standings-table tp-mini-table">
-        <thead><tr><th>Batter</th><th>Pos</th><th>AB</th><th>H</th><th>R</th><th>RBI</th><th>BB</th><th>K</th><th>HR</th><th>AVG</th></tr></thead>
+        <thead><tr><th>Batter</th><th>Cl</th><th>Pos</th><th>AB</th><th>H</th><th>R</th><th>RBI</th><th>BB</th><th>K</th><th>HR</th><th>AVG</th></tr></thead>
         <tbody>${battingRows}</tbody>
       </table>
       <table class="standings-table tp-mini-table">
-        <thead><tr><th>Pitcher</th><th>W-L</th><th>IP</th><th>H</th><th>ER</th><th>BB</th><th>K</th><th>ERA</th><th>WHIP</th></tr></thead>
+        <thead><tr><th>Pitcher</th><th>Cl</th><th>W-L</th><th>IP</th><th>H</th><th>ER</th><th>BB</th><th>K</th><th>ERA</th><th>WHIP</th></tr></thead>
         <tbody>${pitchingRows}</tbody>
       </table>
     </div>
@@ -610,13 +638,13 @@ function openBoxScoreModal(gameId) {
   function battingTable(side, teamName) {
     const rows = boxscore[side].batting.map((b) => `
       <tr>
-        <td>${b.battingOrder}. ${b.name}</td><td>${b.position}</td>
+        <td>${b.battingOrder}. ${b.name}${b.twoWay ? ' <span class="two-way-tag">TW</span>' : ''}</td><td>${b.class}</td><td>${b.position}</td>
         <td>${b.ab}</td><td>${b.h}</td><td>${b.r}</td><td>${b.rbi}</td><td>${b.bb}</td><td>${b.k}</td>
       </tr>`).join('');
     return `
       <div class="bs-team-title">${teamLink(teamName)}</div>
       <table class="standings-table tp-mini-table">
-        <thead><tr><th>Batter</th><th>Pos</th><th>AB</th><th>H</th><th>R</th><th>RBI</th><th>BB</th><th>K</th></tr></thead>
+        <thead><tr><th>Batter</th><th>Cl</th><th>Pos</th><th>AB</th><th>H</th><th>R</th><th>RBI</th><th>BB</th><th>K</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
   }
@@ -624,12 +652,12 @@ function openBoxScoreModal(gameId) {
   function pitchingTable(side) {
     const rows = boxscore[side].pitching.map((p) => `
       <tr>
-        <td>${p.role} ${p.name}</td><td>${p.ip}</td><td>${p.h}</td><td>${p.r}</td><td>${p.er}</td><td>${p.bb}</td><td>${p.k}</td>
+        <td>${p.role} ${p.name}${p.twoWay ? ' <span class="two-way-tag">TW</span>' : ''}</td><td>${p.class}</td><td>${p.ip}</td><td>${p.h}</td><td>${p.r}</td><td>${p.er}</td><td>${p.bb}</td><td>${p.k}</td>
         <td>${p.decision}</td>
       </tr>`).join('');
     return `
       <table class="standings-table tp-mini-table">
-        <thead><tr><th>Pitcher</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>K</th><th></th></tr></thead>
+        <thead><tr><th>Pitcher</th><th>Cl</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>K</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
   }

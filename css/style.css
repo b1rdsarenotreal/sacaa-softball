@@ -463,11 +463,13 @@ main {
 .modal {
   background: var(--paper);
   border-radius: 8px;
-  max-width: 640px;
+  max-width: 760px;
   width: 100%;
   padding: 28px;
   position: relative;
   box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+  max-height: 88vh;
+  overflow-y: auto;
 }
 
 .modal-close {
@@ -583,6 +585,20 @@ main {
 .tp-mini-table {
   font-size: 0.76rem;
   width: 100%;
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.two-way-tag {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--clay);
+  border: 1px solid var(--clay);
+  border-radius: 3px;
+  padding: 0 3px;
+  vertical-align: middle;
 }
 
 .tp-mini-table th, .tp-mini-table td {

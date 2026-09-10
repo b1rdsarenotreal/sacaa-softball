@@ -621,6 +621,11 @@ main {
   min-width: 26px;
 }
 
+.bs-linescore .bs-rhe {
+  font-weight: 600;
+  border-left: 2px solid var(--line);
+}
+
 .bs-linescore td:first-child, .bs-linescore th:first-child {
   text-align: left;
   min-width: 80px;

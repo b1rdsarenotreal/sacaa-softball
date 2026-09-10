@@ -77,7 +77,7 @@ function simWeek() {
     const awayGR = gameRosterFor(g.away, g.gameOfSeries);
     const r = simulateGame(awayGR, homeGR, LEAGUE, g.id * 7919 + state.seed);
     g.played = true;
-    g.result = { homeScore: r.homeScore, awayScore: r.awayScore, innings: r.innings, awayLine: r.awayLine, homeLine: r.homeLine };
+    g.result = { homeScore: r.homeScore, awayScore: r.awayScore, innings: r.innings, awayLine: r.awayLine, homeLine: r.homeLine, mercyRule: r.mercyRule };
   });
   if (week >= state.totalWeeks) {
     state.regularSeasonComplete = true;
@@ -108,7 +108,7 @@ function simWeekQuiet() {
     const awayGR = gameRosterFor(g.away, g.gameOfSeries);
     const r = simulateGame(awayGR, homeGR, LEAGUE, g.id * 7919 + state.seed);
     g.played = true;
-    g.result = { homeScore: r.homeScore, awayScore: r.awayScore, innings: r.innings, awayLine: r.awayLine, homeLine: r.homeLine };
+    g.result = { homeScore: r.homeScore, awayScore: r.awayScore, innings: r.innings, awayLine: r.awayLine, homeLine: r.homeLine, mercyRule: r.mercyRule };
   });
   if (week >= state.totalWeeks) state.regularSeasonComplete = true;
   else state.currentWeek = week + 1;
@@ -269,7 +269,8 @@ function renderSchedule() {
 
     const tag = document.createElement('div');
     tag.className = 'game-tag';
-    tag.textContent = g.played ? (g.conferenceGame ? 'final · conf' : 'final') : (g.conferenceGame ? 'conf' : 'non-conf');
+    const mercyTag = g.played && g.result.mercyRule ? ' · mercy' : '';
+    tag.textContent = g.played ? `final${mercyTag}${g.conferenceGame ? ' · conf' : ''}` : (g.conferenceGame ? 'conf' : 'non-conf');
 
     row.append(awayDiv, vs, homeDiv, tag);
     list.appendChild(row);
@@ -540,7 +541,7 @@ function openTeamModal(name) {
         <span class="tp-wk">wk ${g.week}</span>
         <span>${atVs} ${teamLink(opponent)}</span>
         <span class="tp-score"><span class="${won ? 'tp-result-w' : 'tp-result-l'}">${won ? 'W' : 'L'}</span> ${ownScore}-${oppScore}</span>
-        <span class="tp-tag">${g.conferenceGame ? 'conf' : 'non-conf'}</span>
+        <span class="tp-tag">${g.conferenceGame ? 'conf' : 'non-conf'}${g.result.mercyRule ? ' · mercy' : ''}</span>
       </div>`;
   }).join('');
 
@@ -662,14 +663,16 @@ function openBoxScoreModal(gameId) {
       </table>`;
   }
 
-  const lineHeader = result.awayLine.map((_, i) => `<th>${i + 1}</th>`).join('') + '<th>R</th>';
-  const awayLineRow = result.awayLine.map((r) => `<td>${r === null ? '' : r}</td>`).join('') + `<td><strong>${result.awayScore}</strong></td>`;
-  const homeLineRow = result.homeLine.map((r) => `<td>${r === null ? '' : r}</td>`).join('') + `<td><strong>${result.homeScore}</strong></td>`;
+  const lineHeader = result.awayLine.map((_, i) => `<th>${i + 1}</th>`).join('') + '<th class="bs-rhe">R</th><th class="bs-rhe">H</th><th class="bs-rhe">E</th>';
+  const awayLineRow = result.awayLine.map((r) => `<td>${r === null ? '' : r}</td>`).join('')
+    + `<td class="bs-rhe"><strong>${result.lineScore.away.r}</strong></td><td class="bs-rhe">${result.lineScore.away.h}</td><td class="bs-rhe">${result.lineScore.away.e}</td>`;
+  const homeLineRow = result.homeLine.map((r) => `<td>${r === null ? '' : r}</td>`).join('')
+    + `<td class="bs-rhe"><strong>${result.lineScore.home.r}</strong></td><td class="bs-rhe">${result.lineScore.home.h}</td><td class="bs-rhe">${result.lineScore.home.e}</td>`;
 
   document.getElementById('modalContent').innerHTML = `
     <div class="tp-header">
       <h2>${game.away} @ ${game.home}</h2>
-      <p class="tp-sub">Week ${game.week} · Game ${game.gameOfSeries} of ${game.seriesLength ?? 3} · ${game.conferenceGame ? 'Conference' : 'Non-conference'}</p>
+      <p class="tp-sub">Week ${game.week} · Game ${game.gameOfSeries} of ${game.seriesLength ?? 3} · ${game.conferenceGame ? 'Conference' : 'Non-conference'}${result.mercyRule ? ` · <strong>Final (mercy rule, ${result.innings} inn.)</strong>` : ''}</p>
     </div>
     <table class="standings-table tp-mini-table bs-linescore">
       <thead><tr><th></th>${lineHeader}</tr></thead>
@@ -678,7 +681,6 @@ function openBoxScoreModal(gameId) {
         <tr><td>${teamLink(game.home)}</td>${homeLineRow}</tr>
       </tbody>
     </table>
-    <p class="view-note">Errors: ${game.away} ${boxscore.away.errors} · ${game.home} ${boxscore.home.errors}</p>
 
     <div class="tp-schedule-title">Batting</div>
     <div class="tp-roster-tables">

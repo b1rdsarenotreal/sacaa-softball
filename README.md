@@ -24,25 +24,49 @@ js/
 
 ## How the simulation works
 
-- **Individual rosters**: every team has 9 named batters (with a constructed
-  batting order and defensive positions) and a 4-man pitching staff (three
-  starters + a reliever), each with their own AVG/OBP/SLG or ERA/WHIP/K-rate.
-  Players are generated as plausible variations around their team's real
-  stat line from `teams.json` — so a team's overall quality is preserved, but
-  no two players on a roster are identical. Class years (FR/SO/JR/SR) are
-  already assigned, ready for a future recruiting/graduation system.
-- **Every plate appearance** is a real batter vs the actual pitcher in the
+- **Individual rosters**: every team carries a full 25-man roster — a fluid
+  mix of roughly 16-18 position players and 7-9 pitchers (never a fixed
+  split, so some teams run deeper rotations than others). 0-2 pitchers per
+  team are **two-way players**: they carry both pitching and hitting
+  ratings, and if their bat is good enough they win a spot in the actual
+  starting lineup alongside the position players. Class years (FR/SO/JR/SR)
+  are assigned to everyone, ready for a future recruiting/graduation system.
+- **Ratings drive everything**: instead of raw stat lines, every player has
+  rated tools on a 20-80 scouting scale (50 = league average) — Contact,
+  Power, and Eye for hitters; Stuff, Control, and Movement for pitchers.
+  These are generated as individual variation around each team's real
+  batting/pitching quality (pulled from `teams.json`), so team strength is
+  preserved while no two players are identical. Every plate appearance is a
+  head-to-head comparison of the batter's and pitcher's ratings. This
+  replaced an earlier stat-multiplier model that could stack multiplicative
+  factors and produce blowout scores against weak pitching staffs; the
+  rating-differential formulas are sigmoid-bounded and were tuned by
+  simulating thousands of plate appearances against target league rates
+  (~18% strikeouts, ~9% walks, ~.27 average, realistic score margins even
+  in lopsided matchups).
+- **Every plate appearance** is the real batter vs the actual pitcher in the
   game (starters rotate through the rotation by game number; a bullpen arm
   takes over if a pitcher allows 6+ runs). Fielding errors are modeled off
   each team's fielding percentage, runs are correctly split into earned vs.
   unearned, and pitchers get real W/L/SV decisions.
 - **Full box scores** (AB/H/R/RBI/BB/K/2B/3B/HR per batter, IP/H/R/ER/BB/K
-  per pitcher) are generated for every game. Regular-season box scores
-  aren't saved to disk — the sim is fully seeded and deterministic, so a
-  game's exact box score is regenerated on demand (in well under a
-  millisecond) whenever you open it, keeping the saved file small. Click any
+  per pitcher, plus a proper R/H/E line) are generated for every game.
+  Regular-season box scores aren't saved to disk — the sim is fully seeded
+  and deterministic, so a game's exact box score (including which bench
+  players started that day) is regenerated on demand in well under a
+  millisecond whenever you open it, keeping the saved file small. Click any
   played game to see its box score, and click a team name to see its full
-  roster with season stats aggregated across every game it's played.
+  25-man roster (with class and ratings) plus season stats aggregated
+  across every game it's played.
+- **Real bench usage**: each of a team's 9 lineup spots has a chance to go
+  to a bench player for any given game, so mainstays play most of the time
+  (regulars typically appear in 30+ of a team's ~40 games) while a good
+  chunk of the bench gets real, meaningful game time over a season instead
+  of never playing. Pitching staffs work the same way on the relief side —
+  a struggling pitcher gets pulled and there's no cap on how many arms a
+  team burns through in a real blowout.
+- **Mercy rule**: if either team leads by 8+ runs after a complete 5th or
+  6th inning, the game ends immediately, same as real college softball.
 - **Schedule**: weeks 1–4 are entirely non-conference (4-game series). Weeks
   5–13 run each conference's round-robin (3-game series, via the standard
   "circle method"). Any team without a conference game in a given week —
@@ -95,16 +119,19 @@ No build step, no dependencies to install — it's just static files.
   Every team needs `batting.avg/obp/slg/iso`, `pitching.era/whip/k_per7/k_bb`,
   and `fielding.pct`. Individual players are regenerated from these values
   every time you start a new season.
-- **Player generation** (name pools, how much individual players vary from
-  their team's average, batting-order construction): `js/engine/roster.js`.
+- **Player generation** (name pools, roster size/split, two-way player odds,
+  batting-order construction, rating-to-team-talent mapping):
+  `js/engine/roster.js`.
 - **Season length / games per series**: `TOTAL_WEEKS` and the series-length
   constants at the top of `js/engine/schedule.js`.
 - **NCAA field size**: pass a different number into `selectField(...)` in
   `js/app.js` (currently 16).
 - **Simulation "feel"** (higher/lower scoring, more/fewer upsets, error
-  rates, when the bullpen gets the call): the clamp ranges and multipliers in
-  `js/engine/sim.js` (`simulatePA`, `RELIEF_RUN_THRESHOLD`) are the knobs —
-  each has a comment explaining what it controls.
+  rates, when the bullpen gets the call, how often the bench plays, the
+  mercy-rule threshold): the sigmoid slope/bias constants and clamp ranges
+  in `js/engine/sim.js` (`simulatePA`, `RELIEF_RUN_THRESHOLD`,
+  `LINEUP_SUB_CHANCE`, `MERCY_INNING`, `MERCY_MARGIN`) are the knobs — each
+  has a comment explaining what it controls.
 
 ## Roadmap
 

@@ -134,12 +134,31 @@ export function makeRng(seed) {
   };
 }
 
-const RELIEF_RUN_THRESHOLD = 6; // runs allowed before the bullpen gets the call
+const RELIEF_RUN_THRESHOLD = 6; // runs allowed (in the current appearance) before the bullpen gets the call
+const LINEUP_SUB_CHANCE = 0.16; // odds a given lineup slot goes to a bench player for this game
 
-function makeTeamGameState(gameRoster) {
+// Builds the actual 9 players used for this specific game. Each slot in the
+// primary lineup has a chance to be given to a bench player instead, so a
+// team's bench gets real, semi-regular usage over a season rather than never
+// playing. This runs on the same seeded `rng` as everything else in the
+// game, so re-simulating a game (see app.js's regenerateGameResult) always
+// reproduces the exact same lineup.
+function selectGameLineup(gameRoster, rng) {
+  const bench = gameRoster.bench || [];
+  if (bench.length === 0) return gameRoster.lineup;
+  return gameRoster.lineup.map((starter) => {
+    if (rng() < LINEUP_SUB_CHANCE) {
+      const sub = bench[Math.floor(rng() * bench.length)];
+      return { ...sub, battingOrder: starter.battingOrder, position: starter.position, starterId: starter.id };
+    }
+    return starter;
+  });
+}
+
+function makeTeamGameState(gameRoster, rng) {
   return {
     name: gameRoster.name,
-    lineup: gameRoster.lineup,
+    lineup: selectGameLineup(gameRoster, rng),
     battingIndex: 0,
     fieldingPct: gameRoster.fieldingPct,
     errors: 0,
@@ -238,12 +257,13 @@ function simulateHalfInning(battingState, fieldingState, league, rng, battingBox
       if (!errorOccurred) appearance.er += adv.scorers.length;
     }
 
-    // Bullpen call: one relief swap per team per game, once the starter (or
-    // current reliever) has allowed too many runs.
+    // Bullpen call: whoever's pitching gets pulled once they've allowed too
+    // many runs IN THIS APPEARANCE; the next arm in the queue inherits a
+    // clean slate. No cap on how many times this can chain, so a team can
+    // burn through its whole staff in a real blowout, same as real life.
     if (
       appearance.r >= RELIEF_RUN_THRESHOLD &&
-      fieldingState.bullpenQueue.length > 0 &&
-      fieldingState.appearances.length < 2
+      fieldingState.bullpenQueue.length > 0
     ) {
       const reliever = fieldingState.bullpenQueue.shift();
       startAppearance(fieldingState, reliever);
@@ -290,18 +310,21 @@ function finalizePitchingBox(appearances) {
 }
 
 // Simulate a full game. away/home are "game rosters" (see roster.js
-// buildGameRoster): { name, lineup, startingPitcher, bullpen, fieldingPct }.
+// buildGameRoster): { name, lineup, bench, startingPitcher, bullpen, fieldingPct }.
+const MERCY_INNING = 5; // earliest inning the mercy rule can end the game
+const MERCY_MARGIN = 8; // run lead required
+
 export function simulateGame(awayGameRoster, homeGameRoster, league, seed) {
   const rng = typeof seed === 'number' ? makeRng(seed) : Math.random;
 
-  const awayState = makeTeamGameState(awayGameRoster);
-  const homeState = makeTeamGameState(homeGameRoster);
+  const awayState = makeTeamGameState(awayGameRoster, rng);
+  const homeState = makeTeamGameState(homeGameRoster, rng);
   startAppearance(awayState, awayGameRoster.startingPitcher);
   startAppearance(homeState, homeGameRoster.startingPitcher);
 
   const battingBox = {
-    away: initBattingBox(awayGameRoster.lineup),
-    home: initBattingBox(homeGameRoster.lineup),
+    away: initBattingBox(awayState.lineup),
+    home: initBattingBox(homeState.lineup),
   };
 
   const awayLine = [];
@@ -309,6 +332,7 @@ export function simulateGame(awayGameRoster, homeGameRoster, league, seed) {
   let awayScore = 0;
   let homeScore = 0;
   const REGULATION = 7;
+  let mercyRule = false;
 
   let inning = 1;
   while (true) {
@@ -317,8 +341,16 @@ export function simulateGame(awayGameRoster, homeGameRoster, league, seed) {
     awayLine.push(top.runs);
 
     const isLastScheduled = inning >= REGULATION;
+    const mercyEligible = inning >= MERCY_INNING;
+
     if (isLastScheduled && homeScore > awayScore) {
       homeLine.push(null);
+      break;
+    }
+    if (mercyEligible && !isLastScheduled && homeScore - awayScore >= MERCY_MARGIN) {
+      // Home is already up big after the top half -- no need to bat.
+      homeLine.push(null);
+      mercyRule = true;
       break;
     }
 
@@ -327,6 +359,10 @@ export function simulateGame(awayGameRoster, homeGameRoster, league, seed) {
     homeLine.push(bottom.runs);
 
     if (isLastScheduled && homeScore !== awayScore) break;
+    if (mercyEligible && Math.abs(homeScore - awayScore) >= MERCY_MARGIN) {
+      mercyRule = true;
+      break;
+    }
     inning += 1;
     if (inning > 25) break;
   }
@@ -346,6 +382,11 @@ export function simulateGame(awayGameRoster, homeGameRoster, league, seed) {
     lastWinApp.decision = 'SV';
   }
 
+  const awayBattingFinal = finalizeBattingBox(battingBox.away);
+  const homeBattingFinal = finalizeBattingBox(battingBox.home);
+  const awayHits = awayBattingFinal.reduce((s, b) => s + b.h, 0);
+  const homeHits = homeBattingFinal.reduce((s, b) => s + b.h, 0);
+
   return {
     awayScore,
     homeScore,
@@ -353,14 +394,19 @@ export function simulateGame(awayGameRoster, homeGameRoster, league, seed) {
     homeLine,
     innings: awayLine.length,
     winner: winnerSide,
+    mercyRule,
+    lineScore: {
+      away: { r: awayScore, h: awayHits, e: awayState.errors },
+      home: { r: homeScore, h: homeHits, e: homeState.errors },
+    },
     boxscore: {
       away: {
-        batting: finalizeBattingBox(battingBox.away),
+        batting: awayBattingFinal,
         pitching: finalizePitchingBox(awayState.appearances),
         errors: awayState.errors,
       },
       home: {
-        batting: finalizeBattingBox(battingBox.home),
+        batting: homeBattingFinal,
         pitching: finalizePitchingBox(homeState.appearances),
         errors: homeState.errors,
       },

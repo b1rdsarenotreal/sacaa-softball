@@ -244,6 +244,7 @@ export function buildGameRoster(teamName, roster, team, startingPitcher) {
   return {
     name: teamName,
     lineup: roster.lineup,
+    bench: roster.bench,
     startingPitcher,
     bullpen,
     fieldingPct: team.fielding.pct,

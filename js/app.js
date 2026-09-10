@@ -9,12 +9,17 @@ const STORAGE_KEY = 'sacaa-season-v1';
 
 let TEAMS = [];
 let TEAMS_BY_NAME = {};
+let CONFERENCES = {};
 let LEAGUE = null;
 let state = null;
 
 async function loadTeams() {
-  const res = await fetch('js/data/teams.json');
-  TEAMS = await res.json();
+  const [teamsRes, confRes] = await Promise.all([
+    fetch('js/data/teams.json'),
+    fetch('js/data/conferences.json'),
+  ]);
+  TEAMS = await teamsRes.json();
+  CONFERENCES = await confRes.json();
   TEAMS_BY_NAME = Object.fromEntries(TEAMS.map((t) => [t.name, t]));
   LEAGUE = computeLeagueAverages(TEAMS);
 }
@@ -300,6 +305,8 @@ function renderStandings() {
       card.className = 'standings-card';
       const h3 = document.createElement('h3');
       h3.textContent = conf;
+      const confColor = CONFERENCES[conf]?.color;
+      if (confColor) card.style.setProperty('--conf-color', confColor);
       card.appendChild(h3);
 
       const table = document.createElement('table');
@@ -493,18 +500,36 @@ function renderTeams() {
   TEAMS.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach((t) => {
     const card = document.createElement('div');
     card.className = 'team-card';
+    if (t.colors) card.style.setProperty('--team-primary', t.colors.primary);
     card.innerHTML = `
-      <h4>${teamLink(t.name)}</h4>
-      <p>${t.conference} · ${t.coach}</p>
-      <div class="stat-line">AVG ${t.batting.avg.toFixed(3)} · OBP ${t.batting.obp.toFixed(3)} · SLG ${t.batting.slg.toFixed(3)}</div>
-      <div class="stat-line">ERA ${t.pitching.era.toFixed(2)} · WHIP ${t.pitching.whip.toFixed(2)}</div>
+      ${teamBadge(t.name, 40)}
+      <div class="team-card-body">
+        <h4>${teamLink(t.name, { noBadge: true })}</h4>
+        <p>${t.conference} · ${t.coach}</p>
+        <div class="stat-line">AVG ${t.batting.avg.toFixed(3)} · OBP ${t.batting.obp.toFixed(3)} · SLG ${t.batting.slg.toFixed(3)}</div>
+        <div class="stat-line">ERA ${t.pitching.era.toFixed(2)} · WHIP ${t.pitching.whip.toFixed(2)}</div>
+      </div>
     `;
     grid.appendChild(card);
   });
 }
 
-function teamLink(name) {
-  return `<span class="team-link" data-team="${name}">${name}</span>`;
+function teamBadge(name, size = 20, extraClass = '') {
+  const team = TEAMS_BY_NAME[name];
+  if (!team) return '';
+  const colors = team.colors || { primary: '#0F3324', secondary: '#D7E600' };
+  const initials = (team.abbr || name.slice(0, 3)).slice(0, 3);
+  const fontSize = initials.length >= 3 ? 30 : 40;
+  return `<svg class="team-badge ${extraClass}" width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true">
+    <circle cx="50" cy="50" r="46" fill="${colors.primary}" stroke="${colors.secondary}" stroke-width="7"/>
+    <text x="50" y="53" text-anchor="middle" dominant-baseline="middle" font-family="'Archivo Expanded', sans-serif" font-weight="800" font-size="${fontSize}" fill="#ffffff">${initials}</text>
+  </svg>`;
+}
+
+function teamLink(name, opts = {}) {
+  const size = opts.size || 20;
+  const badge = opts.noBadge ? '' : teamBadge(name, size);
+  return `<span class="team-link" data-team="${name}">${badge}<span class="team-link-name">${name}</span></span>`;
 }
 
 function openTeamModal(name) {
@@ -588,8 +613,11 @@ function openTeamModal(name) {
 
   document.getElementById('modalContent').innerHTML = `
     <div class="tp-header">
-      <h2>${team.name}</h2>
-      <p class="tp-sub">${team.conference} · Head Coach ${team.coach}</p>
+      ${teamBadge(team.name, 56, 'team-badge-lg')}
+      <div>
+        <h2>${team.name}</h2>
+        <p class="tp-sub">${team.conference} · Head Coach ${team.coach}</p>
+      </div>
     </div>
     <div class="tp-records">
       <div class="tp-record-box"><span class="num">${row.wins}-${row.losses}</span><span class="label">overall</span></div>
@@ -643,11 +671,13 @@ function openBoxScoreModal(gameId) {
         <td>${b.ab}</td><td>${b.h}</td><td>${b.r}</td><td>${b.rbi}</td><td>${b.bb}</td><td>${b.k}</td>
       </tr>`).join('');
     return `
-      <div class="bs-team-title">${teamLink(teamName)}</div>
-      <table class="standings-table tp-mini-table">
-        <thead><tr><th>Batter</th><th>Cl</th><th>Pos</th><th>AB</th><th>H</th><th>R</th><th>RBI</th><th>BB</th><th>K</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+      <div>
+        <div class="bs-team-title">${teamLink(teamName)}</div>
+        <table class="standings-table tp-mini-table">
+          <thead><tr><th>Batter</th><th>Cl</th><th>Pos</th><th>AB</th><th>H</th><th>R</th><th>RBI</th><th>BB</th><th>K</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
   }
 
   function pitchingTable(side) {
@@ -671,8 +701,11 @@ function openBoxScoreModal(gameId) {
 
   document.getElementById('modalContent').innerHTML = `
     <div class="tp-header">
-      <h2>${game.away} @ ${game.home}</h2>
-      <p class="tp-sub">Week ${game.week} · Game ${game.gameOfSeries} of ${game.seriesLength ?? 3} · ${game.conferenceGame ? 'Conference' : 'Non-conference'}${result.mercyRule ? ` · <strong>Final (mercy rule, ${result.innings} inn.)</strong>` : ''}</p>
+      <div class="bs-header-badges">${teamBadge(game.away, 40)}${teamBadge(game.home, 40)}</div>
+      <div>
+        <h2>${game.away} @ ${game.home}</h2>
+        <p class="tp-sub">Week ${game.week} · Game ${game.gameOfSeries} of ${game.seriesLength ?? 3} · ${game.conferenceGame ? 'Conference' : 'Non-conference'}${result.mercyRule ? ` · <strong>Final (mercy rule, ${result.innings} inn.)</strong>` : ''}</p>
+      </div>
     </div>
     <table class="standings-table tp-mini-table bs-linescore">
       <thead><tr><th></th>${lineHeader}</tr></thead>

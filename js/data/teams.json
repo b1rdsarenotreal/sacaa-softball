@@ -20,7 +20,12 @@
     },
     "fielding": {
       "pct": 0.975
-    }
+    },
+    "colors": {
+      "primary": "#195494",
+      "secondary": "#9bbbdd"
+    },
+    "abbr": "ARIZ"
   },
   {
     "name": "Arizona State",
@@ -43,7 +48,12 @@
     },
     "fielding": {
       "pct": 0.97
-    }
+    },
+    "colors": {
+      "primary": "#2274b3",
+      "secondary": "#bbd4e6"
+    },
+    "abbr": "AS"
   },
   {
     "name": "Azusa Pacific",
@@ -66,7 +76,12 @@
     },
     "fielding": {
       "pct": 0.972
-    }
+    },
+    "colors": {
+      "primary": "#4e1aa2",
+      "secondary": "#bda6e1"
+    },
+    "abbr": "AP"
   },
   {
     "name": "Bakersfield",
@@ -89,7 +104,12 @@
     },
     "fielding": {
       "pct": 0.955
-    }
+    },
+    "colors": {
+      "primary": "#a32823",
+      "secondary": "#e1b3b1"
+    },
+    "abbr": "BAKE"
   },
   {
     "name": "Biola",
@@ -112,7 +132,12 @@
     },
     "fielding": {
       "pct": 0.978
-    }
+    },
+    "colors": {
+      "primary": "#5e2b91",
+      "secondary": "#c4aeda"
+    },
+    "abbr": "BIOL"
   },
   {
     "name": "Cal Baptist",
@@ -135,7 +160,12 @@
     },
     "fielding": {
       "pct": 0.981
-    }
+    },
+    "colors": {
+      "primary": "#8a2d22",
+      "secondary": "#d8a6a0"
+    },
+    "abbr": "CB"
   },
   {
     "name": "Cal Poly",
@@ -158,7 +188,12 @@
     },
     "fielding": {
       "pct": 0.947
-    }
+    },
+    "colors": {
+      "primary": "#b91c1f",
+      "secondary": "#e8b9ba"
+    },
+    "abbr": "CP"
   },
   {
     "name": "Cal Poly Humboldt",
@@ -181,7 +216,12 @@
     },
     "fielding": {
       "pct": 0.957
-    }
+    },
+    "colors": {
+      "primary": "#ac6c33",
+      "secondary": "#e5d5c6"
+    },
+    "abbr": "CPH"
   },
   {
     "name": "Cal State Dominguez Hills",
@@ -204,7 +244,12 @@
     },
     "fielding": {
       "pct": 0.973
-    }
+    },
+    "colors": {
+      "primary": "#936c2e",
+      "secondary": "#dbcbb2"
+    },
+    "abbr": "CSDH"
   },
   {
     "name": "Cal State East Bay",
@@ -227,7 +272,12 @@
     },
     "fielding": {
       "pct": 0.967
-    }
+    },
+    "colors": {
+      "primary": "#ab9134",
+      "secondary": "#e5dec7"
+    },
+    "abbr": "CSEB"
   },
   {
     "name": "Cal State Fullerton",
@@ -250,7 +300,12 @@
     },
     "fielding": {
       "pct": 0.96
-    }
+    },
+    "colors": {
+      "primary": "#a33254",
+      "secondary": "#e2c0ca"
+    },
+    "abbr": "CSF"
   },
   {
     "name": "Cal State Monterey Bay",
@@ -273,7 +328,12 @@
     },
     "fielding": {
       "pct": 0.964
-    }
+    },
+    "colors": {
+      "primary": "#a3821e",
+      "secondary": "#e1d4ab"
+    },
+    "abbr": "CSMB"
   },
   {
     "name": "Cal State Northridge",
@@ -296,7 +356,12 @@
     },
     "fielding": {
       "pct": 0.959
-    }
+    },
+    "colors": {
+      "primary": "#b12f31",
+      "secondary": "#e6c5c6"
+    },
+    "abbr": "CSN"
   },
   {
     "name": "Cal State San Bernardino",
@@ -319,7 +384,12 @@
     },
     "fielding": {
       "pct": 0.958
-    }
+    },
+    "colors": {
+      "primary": "#9c871a",
+      "secondary": "#e0d6a3"
+    },
+    "abbr": "CSSB"
   },
   {
     "name": "Cal State San Marcos",
@@ -342,7 +412,12 @@
     },
     "fielding": {
       "pct": 0.965
-    }
+    },
+    "colors": {
+      "primary": "#9c902a",
+      "secondary": "#dedab4"
+    },
+    "abbr": "CSSM"
   },
   {
     "name": "California",
@@ -365,7 +440,12 @@
     },
     "fielding": {
       "pct": 0.963
-    }
+    },
+    "colors": {
+      "primary": "#216d95",
+      "secondary": "#a6c9dc"
+    },
+    "abbr": "CALI"
   },
   {
     "name": "Central Washington",
@@ -388,7 +468,12 @@
     },
     "fielding": {
       "pct": 0.94
-    }
+    },
+    "colors": {
+      "primary": "#78a91d",
+      "secondary": "#d1e3af"
+    },
+    "abbr": "CW"
   },
   {
     "name": "Chaminade",
@@ -411,7 +496,12 @@
     },
     "fielding": {
       "pct": 0.954
-    }
+    },
+    "colors": {
+      "primary": "#468b27",
+      "secondary": "#b6d8a6"
+    },
+    "abbr": "CHAM"
   },
   {
     "name": "Chico State",
@@ -434,7 +524,12 @@
     },
     "fielding": {
       "pct": 0.95
-    }
+    },
+    "colors": {
+      "primary": "#8c7926",
+      "secondary": "#d8cfa5"
+    },
+    "abbr": "CS"
   },
   {
     "name": "Concordia",
@@ -457,7 +552,12 @@
     },
     "fielding": {
       "pct": 0.953
-    }
+    },
+    "colors": {
+      "primary": "#7924a7",
+      "secondary": "#d2b5e2"
+    },
+    "abbr": "CONC"
   },
   {
     "name": "Dominican",
@@ -480,7 +580,12 @@
     },
     "fielding": {
       "pct": 0.963
-    }
+    },
+    "colors": {
+      "primary": "#73329e",
+      "secondary": "#d2bce0"
+    },
+    "abbr": "DOMI"
   },
   {
     "name": "Fresno State",
@@ -503,7 +608,12 @@
     },
     "fielding": {
       "pct": 0.965
-    }
+    },
+    "colors": {
+      "primary": "#218b5a",
+      "secondary": "#a0d9be"
+    },
+    "abbr": "FS"
   },
   {
     "name": "Grand Canyon",
@@ -526,7 +636,12 @@
     },
     "fielding": {
       "pct": 0.974
-    }
+    },
+    "colors": {
+      "primary": "#26875e",
+      "secondary": "#a2d6c1"
+    },
+    "abbr": "GC"
   },
   {
     "name": "Hawai'i Pacific",
@@ -549,7 +664,12 @@
     },
     "fielding": {
       "pct": 0.96
-    }
+    },
+    "colors": {
+      "primary": "#7cae2c",
+      "secondary": "#d7e5c1"
+    },
+    "abbr": "HP"
   },
   {
     "name": "Hawai'i-Hilo",
@@ -572,7 +692,12 @@
     },
     "fielding": {
       "pct": 0.962
-    }
+    },
+    "colors": {
+      "primary": "#66922a",
+      "secondary": "#c8daad"
+    },
+    "abbr": "HH"
   },
   {
     "name": "Hawaii",
@@ -595,7 +720,12 @@
     },
     "fielding": {
       "pct": 0.975
-    }
+    },
+    "colors": {
+      "primary": "#198f65",
+      "secondary": "#98dbc4"
+    },
+    "abbr": "HAWA"
   },
   {
     "name": "Jessup",
@@ -618,7 +748,12 @@
     },
     "fielding": {
       "pct": 0
-    }
+    },
+    "colors": {
+      "primary": "#6b2ba0",
+      "secondary": "#ceb7e0"
+    },
+    "abbr": "JESS"
   },
   {
     "name": "Long Beach State",
@@ -641,7 +776,12 @@
     },
     "fielding": {
       "pct": 0.967
-    }
+    },
+    "colors": {
+      "primary": "#bd2246",
+      "secondary": "#e9c2cb"
+    },
+    "abbr": "LBS"
   },
   {
     "name": "Loyola Marymount",
@@ -664,7 +804,12 @@
     },
     "fielding": {
       "pct": 0.967
-    }
+    },
+    "colors": {
+      "primary": "#b32c7d",
+      "secondary": "#e7c5d9"
+    },
+    "abbr": "LM"
   },
   {
     "name": "Menlo",
@@ -687,7 +832,12 @@
     },
     "fielding": {
       "pct": 0
-    }
+    },
+    "colors": {
+      "primary": "#671d8f",
+      "secondary": "#c59edb"
+    },
+    "abbr": "MENL"
   },
   {
     "name": "Nevada",
@@ -710,7 +860,12 @@
     },
     "fielding": {
       "pct": 0.968
-    }
+    },
+    "colors": {
+      "primary": "#1b8c5b",
+      "secondary": "#99dabe"
+    },
+    "abbr": "NEVA"
   },
   {
     "name": "Oregon",
@@ -733,7 +888,12 @@
     },
     "fielding": {
       "pct": 0.98
-    }
+    },
+    "colors": {
+      "primary": "#2a508d",
+      "secondary": "#aabcd8"
+    },
+    "abbr": "OREG"
   },
   {
     "name": "Oregon State",
@@ -756,7 +916,12 @@
     },
     "fielding": {
       "pct": 0.943
-    }
+    },
+    "colors": {
+      "primary": "#2342b2",
+      "secondary": "#bbc4e6"
+    },
+    "abbr": "OS"
   },
   {
     "name": "Pacific",
@@ -779,7 +944,12 @@
     },
     "fielding": {
       "pct": 0.958
-    }
+    },
+    "colors": {
+      "primary": "#9d1f73",
+      "secondary": "#dfa8cd"
+    },
+    "abbr": "PACI"
   },
   {
     "name": "Portland State",
@@ -802,7 +972,12 @@
     },
     "fielding": {
       "pct": 0.931
-    }
+    },
+    "colors": {
+      "primary": "#279f9b",
+      "secondary": "#b2dfde"
+    },
+    "abbr": "PS"
   },
   {
     "name": "Sacramento State",
@@ -825,7 +1000,12 @@
     },
     "fielding": {
       "pct": 0.95
-    }
+    },
+    "colors": {
+      "primary": "#298e67",
+      "secondary": "#aad9c7"
+    },
+    "abbr": "SACST"
   },
   {
     "name": "Saint Martin's",
@@ -848,7 +1028,12 @@
     },
     "fielding": {
       "pct": 0.955
-    }
+    },
+    "colors": {
+      "primary": "#389829",
+      "secondary": "#b6ddb0"
+    },
+    "abbr": "STMTN"
   },
   {
     "name": "Saint Mary's",
@@ -871,7 +1056,12 @@
     },
     "fielding": {
       "pct": 0.969
-    }
+    },
+    "colors": {
+      "primary": "#972a88",
+      "secondary": "#dcb0d7"
+    },
+    "abbr": "STMRY"
   },
   {
     "name": "San Diego",
@@ -894,7 +1084,12 @@
     },
     "fielding": {
       "pct": 0.963
-    }
+    },
+    "colors": {
+      "primary": "#8d1a4e",
+      "secondary": "#da99b6"
+    },
+    "abbr": "SD"
   },
   {
     "name": "San Diego State",
@@ -917,7 +1112,12 @@
     },
     "fielding": {
       "pct": 0.969
-    }
+    },
+    "colors": {
+      "primary": "#258d61",
+      "secondary": "#a5d9c3"
+    },
+    "abbr": "SDS"
   },
   {
     "name": "San Francisco State",
@@ -940,7 +1140,12 @@
     },
     "fielding": {
       "pct": 0.966
-    }
+    },
+    "colors": {
+      "primary": "#a5a021",
+      "secondary": "#e2e0b0"
+    },
+    "abbr": "SFS"
   },
   {
     "name": "San Jose State",
@@ -963,7 +1168,12 @@
     },
     "fielding": {
       "pct": 0.97
-    }
+    },
+    "colors": {
+      "primary": "#219b95",
+      "secondary": "#a9dfdc"
+    },
+    "abbr": "SJS"
   },
   {
     "name": "Santa Clara",
@@ -986,7 +1196,12 @@
     },
     "fielding": {
       "pct": 0.957
-    }
+    },
+    "colors": {
+      "primary": "#882972",
+      "secondary": "#d6a7cb"
+    },
+    "abbr": "SC"
   },
   {
     "name": "Seattle",
@@ -1009,7 +1224,12 @@
     },
     "fielding": {
       "pct": 0.954
-    }
+    },
+    "colors": {
+      "primary": "#a11b62",
+      "secondary": "#e1a7c6"
+    },
+    "abbr": "SEAT"
   },
   {
     "name": "Stanford",
@@ -1032,7 +1252,12 @@
     },
     "fielding": {
       "pct": 0.971
-    }
+    },
+    "colors": {
+      "primary": "#2f6d9c",
+      "secondary": "#b9cede"
+    },
+    "abbr": "STAN"
   },
   {
     "name": "Stanislaus State",
@@ -1055,7 +1280,12 @@
     },
     "fielding": {
       "pct": 0.956
-    }
+    },
+    "colors": {
+      "primary": "#a47c1d",
+      "secondary": "#e2d1ab"
+    },
+    "abbr": "STAI"
   },
   {
     "name": "UC Davis",
@@ -1078,7 +1308,12 @@
     },
     "fielding": {
       "pct": 0.94
-    }
+    },
+    "colors": {
+      "primary": "#b01b20",
+      "secondary": "#e6b1b3"
+    },
+    "abbr": "UD"
   },
   {
     "name": "UC Riverside",
@@ -1101,7 +1336,12 @@
     },
     "fielding": {
       "pct": 0.955
-    }
+    },
+    "colors": {
+      "primary": "#ab352a",
+      "secondary": "#e4c1bd"
+    },
+    "abbr": "UR"
   },
   {
     "name": "UC San Diego",
@@ -1124,7 +1364,12 @@
     },
     "fielding": {
       "pct": 0.953
-    }
+    },
+    "colors": {
+      "primary": "#921a84",
+      "secondary": "#dc9cd5"
+    },
+    "abbr": "USD"
   },
   {
     "name": "UC Santa Barbara",
@@ -1147,7 +1392,12 @@
     },
     "fielding": {
       "pct": 0.968
-    }
+    },
+    "colors": {
+      "primary": "#823225",
+      "secondary": "#d4a69f"
+    },
+    "abbr": "USB"
   },
   {
     "name": "UCLA",
@@ -1170,7 +1420,12 @@
     },
     "fielding": {
       "pct": 0.978
-    }
+    },
+    "colors": {
+      "primary": "#24607e",
+      "secondary": "#9cc0d3"
+    },
+    "abbr": "UCLA"
   },
   {
     "name": "UNLV",
@@ -1193,7 +1448,12 @@
     },
     "fielding": {
       "pct": 0.973
-    }
+    },
+    "colors": {
+      "primary": "#1fa194",
+      "secondary": "#ace1db"
+    },
+    "abbr": "UNLV"
   },
   {
     "name": "Vanguard",
@@ -1216,7 +1476,12 @@
     },
     "fielding": {
       "pct": 0
-    }
+    },
+    "colors": {
+      "primary": "#5520b0",
+      "secondary": "#c8b7e5"
+    },
+    "abbr": "VANG"
   },
   {
     "name": "Washington",
@@ -1239,7 +1504,12 @@
     },
     "fielding": {
       "pct": 0.973
-    }
+    },
+    "colors": {
+      "primary": "#274fa4",
+      "secondary": "#b6c4e1"
+    },
+    "abbr": "WASH"
   },
   {
     "name": "Western Oregon",
@@ -1262,7 +1532,12 @@
     },
     "fielding": {
       "pct": 0.942
-    }
+    },
+    "colors": {
+      "primary": "#50972f",
+      "secondary": "#c2dcb5"
+    },
+    "abbr": "WO"
   },
   {
     "name": "Western Washington",
@@ -1285,6 +1560,11 @@
     },
     "fielding": {
       "pct": 0.974
-    }
+    },
+    "colors": {
+      "primary": "#4a8c1b",
+      "secondary": "#b4da99"
+    },
+    "abbr": "WW"
   }
 ]

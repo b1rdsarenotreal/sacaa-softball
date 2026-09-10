@@ -133,6 +133,21 @@ No build step, no dependencies to install — it's just static files.
   `LINEUP_SUB_CHANCE`, `MERCY_INNING`, `MERCY_MARGIN`) are the knobs — each
   has a comment explaining what it controls.
 
+## Customizing team identity
+
+- **Logos**: open a team's profile (click its name anywhere) and click
+  "Upload logo" next to the badge. Any image works — it's automatically
+  cropped to a centered square and shrunk down, so a few KB per team. Custom
+  logos are stored in your browser (separate from season data, so they
+  survive "New Season") and fall back to the auto-generated colored badge
+  for any team you haven't uploaded one for. Click "Reset to default" to go
+  back to the generated badge.
+- **Colors**: every team gets generated primary/secondary colors (grouped
+  into color families by conference) stored in `js/data/teams.json` under
+  `colors.primary` / `colors.secondary` — edit those directly if you want to
+  hand-pick a team's colors. Conference banner colors live in
+  `js/data/conferences.json`.
+
 ## Roadmap
 
 Next up: recruiting and multi-year dynasty progression, building directly on

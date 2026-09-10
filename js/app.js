@@ -6,12 +6,105 @@ import { computeRankings, top25 } from './engine/rankings.js';
 import { runConferenceTournament, selectField, runRegionals, runWorldSeries, roundLabel } from './engine/postseason.js';
 
 const STORAGE_KEY = 'sacaa-season-v1';
+const LOGO_STORAGE_KEY = 'sacaa-custom-logos-v1';
 
 let TEAMS = [];
 let TEAMS_BY_NAME = {};
 let CONFERENCES = {};
 let LEAGUE = null;
 let state = null;
+let customLogos = {};
+let pendingLogoTeam = null;
+
+function loadCustomLogos() {
+  try {
+    customLogos = JSON.parse(localStorage.getItem(LOGO_STORAGE_KEY) || '{}');
+  } catch {
+    customLogos = {};
+  }
+}
+
+function saveCustomLogos() {
+  try {
+    localStorage.setItem(LOGO_STORAGE_KEY, JSON.stringify(customLogos));
+  } catch {
+    alert("Couldn't save that logo — it may be too large. Try a smaller image.");
+  }
+}
+
+// Reads an uploaded image file, crops it to a centered square, downsizes it
+// (logos don't need to be huge), and hands back a compact PNG data URL.
+function resizeImageFile(file, maxSize, callback) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = maxSize;
+      canvas.height = maxSize;
+      const ctx = canvas.getContext('2d');
+      const scale = Math.max(maxSize / img.width, maxSize / img.height);
+      const sw = maxSize / scale;
+      const sh = maxSize / scale;
+      const sx = (img.width - sw) / 2;
+      const sy = (img.height - sh) / 2;
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, maxSize, maxSize);
+      callback(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => alert("Couldn't read that image file.");
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function setCustomLogo(teamName, dataUrl) {
+  customLogos[teamName] = dataUrl;
+  saveCustomLogos();
+}
+
+function clearCustomLogo(teamName) {
+  delete customLogos[teamName];
+  saveCustomLogos();
+}
+
+// Any already-rendered view showing badges needs a refresh after a logo
+// changes (Teams grid is otherwise only rendered once for performance).
+function refreshAfterLogoChange(teamName) {
+  document.getElementById('teamsGrid').innerHTML = '';
+  renderTeams();
+  renderStandings();
+  renderSchedule();
+  if (document.getElementById('teamModalOverlay').classList.contains('open')) {
+    openTeamModal(teamName);
+  }
+}
+
+function wireLogoUpload() {
+  const fileInput = document.getElementById('logoFileInput');
+  document.addEventListener('click', (e) => {
+    const uploadBtn = e.target.closest('[data-upload-team]');
+    if (uploadBtn) {
+      pendingLogoTeam = uploadBtn.dataset.uploadTeam;
+      fileInput.click();
+      return;
+    }
+    const resetBtn = e.target.closest('[data-reset-logo-team]');
+    if (resetBtn) {
+      clearCustomLogo(resetBtn.dataset.resetLogoTeam);
+      refreshAfterLogoChange(resetBtn.dataset.resetLogoTeam);
+    }
+  });
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    fileInput.value = '';
+    if (!file || !pendingLogoTeam) return;
+    if (!file.type.startsWith('image/')) { alert('Please choose an image file.'); return; }
+    resizeImageFile(file, 160, (dataUrl) => {
+      setCustomLogo(pendingLogoTeam, dataUrl);
+      refreshAfterLogoChange(pendingLogoTeam);
+    });
+  });
+}
 
 async function loadTeams() {
   const [teamsRes, confRes] = await Promise.all([
@@ -515,6 +608,10 @@ function renderTeams() {
 }
 
 function teamBadge(name, size = 20, extraClass = '') {
+  const customLogo = customLogos[name];
+  if (customLogo) {
+    return `<img class="team-badge ${extraClass}" width="${size}" height="${size}" src="${customLogo}" alt="${name} logo">`;
+  }
   const team = TEAMS_BY_NAME[name];
   if (!team) return '';
   const colors = team.colors || { primary: '#0F3324', secondary: '#D7E600' };
@@ -522,7 +619,7 @@ function teamBadge(name, size = 20, extraClass = '') {
   const fontSize = initials.length >= 3 ? 30 : 40;
   return `<svg class="team-badge ${extraClass}" width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true">
     <circle cx="50" cy="50" r="46" fill="${colors.primary}" stroke="${colors.secondary}" stroke-width="7"/>
-    <text x="50" y="53" text-anchor="middle" dominant-baseline="middle" font-family="'Archivo Expanded', sans-serif" font-weight="800" font-size="${fontSize}" fill="#ffffff">${initials}</text>
+    <text x="50" y="53" text-anchor="middle" dominant-baseline="middle" font-family="'Space Grotesk', sans-serif" font-weight="700" font-size="${fontSize}" fill="#ffffff">${initials}</text>
   </svg>`;
 }
 
@@ -613,10 +710,17 @@ function openTeamModal(name) {
 
   document.getElementById('modalContent').innerHTML = `
     <div class="tp-header">
-      ${teamBadge(team.name, 56, 'team-badge-lg')}
+      <div class="tp-badge-wrap">
+        ${teamBadge(team.name, 56, 'team-badge-lg')}
+        <button class="badge-upload-btn" data-upload-team="${team.name}" title="Upload a logo for ${team.name}">⤒</button>
+      </div>
       <div>
         <h2>${team.name}</h2>
         <p class="tp-sub">${team.conference} · Head Coach ${team.coach}</p>
+        <p class="tp-logo-actions">
+          <button class="link-btn" data-upload-team="${team.name}">Upload logo</button>
+          ${customLogos[team.name] ? `· <button class="link-btn" data-reset-logo-team="${team.name}">Reset to default</button>` : ''}
+        </p>
       </div>
     </div>
     <div class="tp-records">
@@ -784,11 +888,13 @@ function wireControls() {
 
 async function init() {
   await loadTeams();
+  loadCustomLogos();
   state = loadState() || freshState(Date.now() % 1000000);
   saveState();
   wireTabs();
   wireControls();
   wireTeamModal();
+  wireLogoUpload();
   renderAll();
 }
 

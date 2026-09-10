@@ -567,6 +567,48 @@ main {
   background: var(--chalk);
 }
 
+.game-row-clickable { cursor: pointer; }
+.game-row-clickable:hover { border-color: var(--field-green); background: #FBFAF6; }
+
+.tp-game-row-clickable { cursor: pointer; }
+.tp-game-row-clickable:hover { background: #EFEBDD; }
+
+.tp-roster-tables {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.tp-mini-table {
+  font-size: 0.76rem;
+  width: 100%;
+}
+
+.tp-mini-table th, .tp-mini-table td {
+  padding: 4px 6px;
+}
+
+.bs-team-title {
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin: 10px 0 4px;
+  color: var(--field-green);
+}
+
+.bs-linescore {
+  margin-bottom: 6px;
+}
+
+.bs-linescore th, .bs-linescore td {
+  text-align: center;
+  min-width: 26px;
+}
+
+.bs-linescore td:first-child, .bs-linescore th:first-child {
+  text-align: left;
+  min-width: 80px;
+}
 .tp-game-row .tp-wk { color: var(--ink-soft); font-size: 0.75rem; font-family: var(--font-mono); }
 .tp-game-row .tp-result-w { color: var(--win); font-weight: 700; }
 .tp-game-row .tp-result-l { color: var(--loss); font-weight: 700; }

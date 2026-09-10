@@ -1,5 +1,6 @@
 import { generateSchedule } from './engine/schedule.js';
 import { computeLeagueAverages, simulateGame } from './engine/sim.js';
+import { generateRosters, buildGameRoster, pickStarterForGame } from './engine/roster.js';
 import { computeStandings, standingsByConference, overallStandings } from './engine/standings.js';
 import { computeRankings, top25 } from './engine/rankings.js';
 import { runConferenceTournament, selectField, runRegionals, runWorldSeries, roundLabel } from './engine/postseason.js';
@@ -25,6 +26,7 @@ function freshState(seed) {
     totalWeeks: schedule.totalWeeks,
     currentWeek: 1,
     games: schedule.games,
+    rosters: generateRosters(TEAMS, seed + 500000),
     regularSeasonComplete: false,
     postseason: null,
   };
@@ -47,16 +49,35 @@ function newSeason() {
   setMessage('New season generated: 56 teams, 13-week schedule.');
 }
 
+function gameRosterFor(teamName, gameOfSeries) {
+  const roster = state.rosters[teamName];
+  const team = TEAMS_BY_NAME[teamName];
+  const starter = pickStarterForGame(roster, gameOfSeries - 1);
+  return buildGameRoster(teamName, roster, team, starter);
+}
+
+// Regular-season box scores are NOT persisted (they'd bloat localStorage --
+// ~1,200 games x ~24 player lines each). Since the sim is fully seeded and
+// deterministic, we just re-run the exact same game on demand whenever a box
+// score is actually needed (e.g. opening the box score modal, or building a
+// team's season stat totals). Re-simulating one game takes well under a
+// millisecond, so this is effectively free.
+function regenerateGameResult(game) {
+  const homeGR = gameRosterFor(game.home, game.gameOfSeries);
+  const awayGR = gameRosterFor(game.away, game.gameOfSeries);
+  return simulateGame(awayGR, homeGR, LEAGUE, game.id * 7919 + state.seed);
+}
+
 function simWeek() {
   if (state.regularSeasonComplete) return;
   const week = state.currentWeek;
   const weekGames = state.games.filter((g) => g.week === week && !g.played);
   weekGames.forEach((g) => {
-    const home = TEAMS_BY_NAME[g.home];
-    const away = TEAMS_BY_NAME[g.away];
-    const r = simulateGame(away, home, LEAGUE, g.id * 7919 + state.seed);
+    const homeGR = gameRosterFor(g.home, g.gameOfSeries);
+    const awayGR = gameRosterFor(g.away, g.gameOfSeries);
+    const r = simulateGame(awayGR, homeGR, LEAGUE, g.id * 7919 + state.seed);
     g.played = true;
-    g.result = { homeScore: r.homeScore, awayScore: r.awayScore, innings: r.innings };
+    g.result = { homeScore: r.homeScore, awayScore: r.awayScore, innings: r.innings, awayLine: r.awayLine, homeLine: r.homeLine };
   });
   if (week >= state.totalWeeks) {
     state.regularSeasonComplete = true;
@@ -83,11 +104,11 @@ function simWeekQuiet() {
   const week = state.currentWeek;
   const weekGames = state.games.filter((g) => g.week === week && !g.played);
   weekGames.forEach((g) => {
-    const home = TEAMS_BY_NAME[g.home];
-    const away = TEAMS_BY_NAME[g.away];
-    const r = simulateGame(away, home, LEAGUE, g.id * 7919 + state.seed);
+    const homeGR = gameRosterFor(g.home, g.gameOfSeries);
+    const awayGR = gameRosterFor(g.away, g.gameOfSeries);
+    const r = simulateGame(awayGR, homeGR, LEAGUE, g.id * 7919 + state.seed);
     g.played = true;
-    g.result = { homeScore: r.homeScore, awayScore: r.awayScore, innings: r.innings };
+    g.result = { homeScore: r.homeScore, awayScore: r.awayScore, innings: r.innings, awayLine: r.awayLine, homeLine: r.homeLine };
   });
   if (week >= state.totalWeeks) state.regularSeasonComplete = true;
   else state.currentWeek = week + 1;
@@ -100,11 +121,11 @@ function simPostseason() {
   const rankings = computeRankings(TEAMS, state.games);
 
   const conferenceTournaments = Object.entries(byConf).map(([conf, rows], i) =>
-    runConferenceTournament(rows, TEAMS_BY_NAME, LEAGUE, state.seed + i * 17 + 3)
+    runConferenceTournament(rows, TEAMS_BY_NAME, state.rosters, LEAGUE, state.seed + i * 17 + 3)
   );
 
   const field = selectField(conferenceTournaments, rankings, 16);
-  const regionals = runRegionals(field, TEAMS_BY_NAME, LEAGUE, state.seed + 101);
+  const regionals = runRegionals(field, TEAMS_BY_NAME, state.rosters, LEAGUE, state.seed + 101);
   const winners = regionals.map((m) => m.winner);
   const worldSeries = runWorldSeries(winners, LEAGUE, state.seed + 202);
 
@@ -112,6 +133,49 @@ function simPostseason() {
   saveState();
   renderAll();
   setMessage(`National Champion: ${worldSeries.champion.name}!`);
+}
+
+function outsToIp(outs) {
+  return `${Math.floor(outs / 3)}.${outs % 3}`;
+}
+
+// Aggregates a team's individual player stats across every game played so
+// far, by re-simulating each game (see regenerateGameResult) and summing box
+// scores. Cheap: even a full 45-game season re-simulates in a few ms.
+function computeSeasonStatsForTeam(teamName) {
+  const battingTotals = {};
+  const pitchingTotals = {};
+  state.games
+    .filter((g) => g.played && (g.home === teamName || g.away === teamName))
+    .forEach((g) => {
+      const result = regenerateGameResult(g);
+      const side = g.home === teamName ? 'home' : 'away';
+      result.boxscore[side].batting.forEach((b) => {
+        if (!battingTotals[b.playerId]) {
+          battingTotals[b.playerId] = {
+            name: b.name, position: b.position, battingOrder: b.battingOrder,
+            ab: 0, h: 0, r: 0, rbi: 0, bb: 0, k: 0, doubles: 0, triples: 0, hr: 0,
+          };
+        }
+        const t = battingTotals[b.playerId];
+        t.ab += b.ab; t.h += b.h; t.r += b.r; t.rbi += b.rbi; t.bb += b.bb; t.k += b.k;
+        t.doubles += b.doubles; t.triples += b.triples; t.hr += b.hr;
+      });
+      result.boxscore[side].pitching.forEach((p) => {
+        if (!pitchingTotals[p.playerId]) {
+          pitchingTotals[p.playerId] = { name: p.name, role: p.role, outs: 0, h: 0, r: 0, er: 0, bb: 0, k: 0, w: 0, l: 0, sv: 0 };
+        }
+        const t = pitchingTotals[p.playerId];
+        t.outs += p.outs; t.h += p.h; t.r += p.r; t.er += p.er; t.bb += p.bb; t.k += p.k;
+        if (p.decision === 'W') t.w += 1;
+        if (p.decision === 'L') t.l += 1;
+        if (p.decision === 'SV') t.sv += 1;
+      });
+    });
+
+  const batting = Object.values(battingTotals).sort((a, b) => a.battingOrder - b.battingOrder);
+  const pitching = Object.values(pitchingTotals).sort((a, b) => b.outs - a.outs);
+  return { batting, pitching };
 }
 
 function setMessage(msg) {
@@ -183,6 +247,10 @@ function renderSchedule() {
   weekGames.forEach((g) => {
     const row = document.createElement('div');
     row.className = 'game-row' + (g.played ? ' played' : '') + (g.conferenceGame ? ' conference-game' : '');
+    if (g.played) {
+      row.classList.add('game-row-clickable');
+      row.dataset.boxscoreGame = g.id;
+    }
 
     const awayWon = g.played && g.result.awayScore > g.result.homeScore;
     const homeWon = g.played && g.result.homeScore > g.result.awayScore;
@@ -468,7 +536,7 @@ function openTeamModal(name) {
     const oppScore = isHome ? g.result.awayScore : g.result.homeScore;
     const won = ownScore > oppScore;
     return `
-      <div class="tp-game-row">
+      <div class="tp-game-row tp-game-row-clickable" data-boxscore-game="${g.id}">
         <span class="tp-wk">wk ${g.week}</span>
         <span>${atVs} ${teamLink(opponent)}</span>
         <span class="tp-score"><span class="${won ? 'tp-result-w' : 'tp-result-l'}">${won ? 'W' : 'L'}</span> ${ownScore}-${oppScore}</span>
@@ -477,6 +545,25 @@ function openTeamModal(name) {
   }).join('');
 
   const rd = row.runDiff > 0 ? `+${row.runDiff}` : `${row.runDiff}`;
+  const seasonStats = computeSeasonStatsForTeam(name);
+
+  const battingRows = seasonStats.batting.map((b) => `
+    <tr>
+      <td>${b.battingOrder}. ${b.name}</td><td>${b.position}</td>
+      <td>${b.ab}</td><td>${b.h}</td><td>${b.r}</td><td>${b.rbi}</td><td>${b.bb}</td><td>${b.k}</td>
+      <td>${b.hr}</td><td>${b.ab > 0 ? (b.h / b.ab).toFixed(3).replace(/^0/, '') : '.000'}</td>
+    </tr>`).join('');
+
+  const pitchingRows = seasonStats.pitching.map((p) => {
+    const ip = outsToIp(p.outs);
+    const era = p.outs > 0 ? ((p.er * 21) / p.outs).toFixed(2) : '0.00';
+    const whip = p.outs > 0 ? ((p.bb + p.h) / (p.outs / 3)).toFixed(2) : '0.00';
+    return `
+    <tr>
+      <td>${p.role} ${p.name}</td><td>${p.w}-${p.l}${p.sv ? `, ${p.sv}sv` : ''}</td>
+      <td>${ip}</td><td>${p.h}</td><td>${p.er}</td><td>${p.bb}</td><td>${p.k}</td><td>${era}</td><td>${whip}</td>
+    </tr>`;
+  }).join('');
 
   document.getElementById('modalContent').innerHTML = `
     <div class="tp-header">
@@ -492,8 +579,90 @@ function openTeamModal(name) {
       AVG ${team.batting.avg.toFixed(3)} · OBP ${team.batting.obp.toFixed(3)} · SLG ${team.batting.slg.toFixed(3)}
       &nbsp;|&nbsp; ERA ${team.pitching.era.toFixed(2)} · WHIP ${team.pitching.whip.toFixed(2)}
     </div>
+
+    ${games.some((g) => g.played) ? `
+    <div class="tp-schedule-title">Roster — Season Stats</div>
+    <div class="tp-roster-tables">
+      <table class="standings-table tp-mini-table">
+        <thead><tr><th>Batter</th><th>Pos</th><th>AB</th><th>H</th><th>R</th><th>RBI</th><th>BB</th><th>K</th><th>HR</th><th>AVG</th></tr></thead>
+        <tbody>${battingRows}</tbody>
+      </table>
+      <table class="standings-table tp-mini-table">
+        <thead><tr><th>Pitcher</th><th>W-L</th><th>IP</th><th>H</th><th>ER</th><th>BB</th><th>K</th><th>ERA</th><th>WHIP</th></tr></thead>
+        <tbody>${pitchingRows}</tbody>
+      </table>
+    </div>
+    ` : ''}
+
     <div class="tp-schedule-title">Schedule (${games.length} games)</div>
     <div class="tp-game-list">${gameRows || '<p class="view-note">No games scheduled.</p>'}</div>
+  `;
+
+  document.getElementById('teamModalOverlay').classList.add('open');
+}
+
+function openBoxScoreModal(gameId) {
+  const game = state.games.find((g) => g.id === Number(gameId));
+  if (!game || !game.played) return;
+  const result = regenerateGameResult(game);
+  const { boxscore } = result;
+
+  function battingTable(side, teamName) {
+    const rows = boxscore[side].batting.map((b) => `
+      <tr>
+        <td>${b.battingOrder}. ${b.name}</td><td>${b.position}</td>
+        <td>${b.ab}</td><td>${b.h}</td><td>${b.r}</td><td>${b.rbi}</td><td>${b.bb}</td><td>${b.k}</td>
+      </tr>`).join('');
+    return `
+      <div class="bs-team-title">${teamLink(teamName)}</div>
+      <table class="standings-table tp-mini-table">
+        <thead><tr><th>Batter</th><th>Pos</th><th>AB</th><th>H</th><th>R</th><th>RBI</th><th>BB</th><th>K</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  function pitchingTable(side) {
+    const rows = boxscore[side].pitching.map((p) => `
+      <tr>
+        <td>${p.role} ${p.name}</td><td>${p.ip}</td><td>${p.h}</td><td>${p.r}</td><td>${p.er}</td><td>${p.bb}</td><td>${p.k}</td>
+        <td>${p.decision}</td>
+      </tr>`).join('');
+    return `
+      <table class="standings-table tp-mini-table">
+        <thead><tr><th>Pitcher</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>K</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  const lineHeader = result.awayLine.map((_, i) => `<th>${i + 1}</th>`).join('') + '<th>R</th>';
+  const awayLineRow = result.awayLine.map((r) => `<td>${r === null ? '' : r}</td>`).join('') + `<td><strong>${result.awayScore}</strong></td>`;
+  const homeLineRow = result.homeLine.map((r) => `<td>${r === null ? '' : r}</td>`).join('') + `<td><strong>${result.homeScore}</strong></td>`;
+
+  document.getElementById('modalContent').innerHTML = `
+    <div class="tp-header">
+      <h2>${game.away} @ ${game.home}</h2>
+      <p class="tp-sub">Week ${game.week} · Game ${game.gameOfSeries} of ${game.seriesLength ?? 3} · ${game.conferenceGame ? 'Conference' : 'Non-conference'}</p>
+    </div>
+    <table class="standings-table tp-mini-table bs-linescore">
+      <thead><tr><th></th>${lineHeader}</tr></thead>
+      <tbody>
+        <tr><td>${teamLink(game.away)}</td>${awayLineRow}</tr>
+        <tr><td>${teamLink(game.home)}</td>${homeLineRow}</tr>
+      </tbody>
+    </table>
+    <p class="view-note">Errors: ${game.away} ${boxscore.away.errors} · ${game.home} ${boxscore.home.errors}</p>
+
+    <div class="tp-schedule-title">Batting</div>
+    <div class="tp-roster-tables">
+      ${battingTable('away', game.away)}
+      ${battingTable('home', game.home)}
+    </div>
+
+    <div class="tp-schedule-title">Pitching</div>
+    <div class="tp-roster-tables">
+      ${pitchingTable('away')}
+      ${pitchingTable('home')}
+    </div>
   `;
 
   document.getElementById('teamModalOverlay').classList.add('open');
@@ -507,6 +676,8 @@ function wireTeamModal() {
   document.addEventListener('click', (e) => {
     const link = e.target.closest('.team-link');
     if (link) { openTeamModal(link.dataset.team); return; }
+    const boxLink = e.target.closest('[data-boxscore-game]');
+    if (boxLink) { openBoxScoreModal(boxLink.dataset.boxscoreGame); return; }
     if (e.target.id === 'teamModalOverlay') closeTeamModal();
   });
   document.getElementById('modalClose').addEventListener('click', closeTeamModal);

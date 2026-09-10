@@ -14,7 +14,8 @@ js/
   app.js              UI wiring, game state, localStorage persistence
   data/teams.json      56 teams: conference, coach, batting/pitching/fielding stats
   engine/
-    sim.js             single-game simulator (stat-driven, inning-by-inning)
+    roster.js          generates individual players (9-batter lineup + pitching staff) per team
+    sim.js             single-game simulator: real batter-vs-pitcher plate appearances, box scores
     schedule.js        13-week schedule generator (conference round-robin + interconference)
     standings.js        conference / overall win-loss records
     rankings.js         RPI-style Top 25 poll
@@ -23,15 +24,25 @@ js/
 
 ## How the simulation works
 
-- **Team strength** comes straight from each team's real batting (AVG/OBP/SLG/ISO)
-  and pitching (ERA/WHIP/K rate) lines pulled from your stat sheet — there's no
-  hidden "overall rating," so if you edit `teams.json` the sim responds directly.
-- **Each plate appearance** gets an outcome probability from the batter's OBP,
-  adjusted up or down by the opposing pitcher's ERA/WHIP relative to the league
-  average, then split into walk/single/double/triple/homer using the batter's
-  ISO. Runners advance with simple, tunable base-running rules (including sac
-  flies). It's tuned so league-average scoring lands close to your source
-  data's ~4.5 runs/team/game.
+- **Individual rosters**: every team has 9 named batters (with a constructed
+  batting order and defensive positions) and a 4-man pitching staff (three
+  starters + a reliever), each with their own AVG/OBP/SLG or ERA/WHIP/K-rate.
+  Players are generated as plausible variations around their team's real
+  stat line from `teams.json` — so a team's overall quality is preserved, but
+  no two players on a roster are identical. Class years (FR/SO/JR/SR) are
+  already assigned, ready for a future recruiting/graduation system.
+- **Every plate appearance** is a real batter vs the actual pitcher in the
+  game (starters rotate through the rotation by game number; a bullpen arm
+  takes over if a pitcher allows 6+ runs). Fielding errors are modeled off
+  each team's fielding percentage, runs are correctly split into earned vs.
+  unearned, and pitchers get real W/L/SV decisions.
+- **Full box scores** (AB/H/R/RBI/BB/K/2B/3B/HR per batter, IP/H/R/ER/BB/K
+  per pitcher) are generated for every game. Regular-season box scores
+  aren't saved to disk — the sim is fully seeded and deterministic, so a
+  game's exact box score is regenerated on demand (in well under a
+  millisecond) whenever you open it, keeping the saved file small. Click any
+  played game to see its box score, and click a team name to see its full
+  roster with season stats aggregated across every game it's played.
 - **Schedule**: weeks 1–4 are entirely non-conference (4-game series). Weeks
   5–13 run each conference's round-robin (3-game series, via the standard
   "circle method"). Any team without a conference game in a given week —
@@ -82,14 +93,25 @@ No build step, no dependencies to install — it's just static files.
 
 - **Team stats / conferences / coaches**: edit `js/data/teams.json` directly.
   Every team needs `batting.avg/obp/slg/iso`, `pitching.era/whip/k_per7/k_bb`,
-  and `fielding.pct`.
-- **Season length / games per series**: `TOTAL_WEEKS` and `GAMES_PER_SERIES`
-  at the top of `js/engine/schedule.js`.
+  and `fielding.pct`. Individual players are regenerated from these values
+  every time you start a new season.
+- **Player generation** (name pools, how much individual players vary from
+  their team's average, batting-order construction): `js/engine/roster.js`.
+- **Season length / games per series**: `TOTAL_WEEKS` and the series-length
+  constants at the top of `js/engine/schedule.js`.
 - **NCAA field size**: pass a different number into `selectField(...)` in
   `js/app.js` (currently 16).
-- **Simulation "feel"** (higher/lower scoring, more/fewer upsets): the clamp
-  ranges and multipliers in `js/engine/sim.js` (`simulatePA`) are the knobs —
+- **Simulation "feel"** (higher/lower scoring, more/fewer upsets, error
+  rates, when the bullpen gets the call): the clamp ranges and multipliers in
+  `js/engine/sim.js` (`simulatePA`, `RELIEF_RUN_THRESHOLD`) are the knobs —
   each has a comment explaining what it controls.
+
+## Roadmap
+
+Next up: recruiting and multi-year dynasty progression, building directly on
+the roster/class-year system now in place — graduating seniors, generating
+incoming recruiting classes, and carrying a program's identity across
+multiple seasons instead of starting fresh every time.
 
 ## Notes on the source data
 

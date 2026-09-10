@@ -1,9 +1,12 @@
 // postseason.js
 // Conference tournaments (single-elim, fully rendered bracket) -> NCAA field
 // selection (7 auto bids + at-large by RPI) -> Regional round (best-of-3) ->
-// World Series (true 8-team double-elimination bracket).
+// World Series (true 8-team double-elimination bracket). Every game is now
+// simulated with real rosters, so postseason results come with full box
+// scores just like the regular season.
 
 import { simulateGame, simulateSeries } from './sim.js';
+import { pickStarterForGame, buildGameRoster } from './roster.js';
 
 function nextPowerOf2(n) {
   let p = 1;
@@ -11,8 +14,6 @@ function nextPowerOf2(n) {
   return p;
 }
 
-// Seed `n` entries (already ordered best-first) into a standard bracket with
-// byes for the top seeds when n isn't a power of 2.
 function seedBracket(orderedTeams) {
   const size = nextPowerOf2(orderedTeams.length);
   const slots = new Array(size).fill(null);
@@ -26,7 +27,6 @@ function seedBracket(orderedTeams) {
   return slots;
 }
 
-// Human round names, counting back from the final round.
 export function roundLabel(idx, total) {
   const fromEnd = total - idx;
   if (fromEnd === 1) return 'Championship';
@@ -57,26 +57,45 @@ function runSingleElim(slots, playGame) {
   return { rounds, champion: current[0] };
 }
 
-// Full single-elimination conference tournament, top 8 seeds by conf record.
-export function runConferenceTournament(conferenceStandingRows, teamsByName, league, seed = 1) {
-  const seeds = conferenceStandingRows.slice(0, 8).map((r) => teamsByName[r.name]);
+// A "descriptor" bundles what a game needs to know about a team:
+// { name, roster, team, seed? }. `team` is the TEAMS_BY_NAME entry (fielding
+// pct); `roster` is that team's roster.js roster.
+function descriptorsFor(names, rosters, teamsByName) {
+  return names.map((name) => ({ name, roster: rosters[name], team: teamsByName[name] }));
+}
+
+// Tracks how many elimination-bracket games each team has played, so a team
+// that keeps advancing works through its rotation (SP1, then SP2, ...)
+// instead of throwing the ace every single game.
+function makeStarterTracker() {
+  const counts = new Map();
+  return (descriptor) => {
+    const n = counts.get(descriptor.name) || 0;
+    counts.set(descriptor.name, n + 1);
+    return pickStarterForGame(descriptor.roster, n);
+  };
+}
+
+export function runConferenceTournament(conferenceStandingRows, teamsByName, rosters, league, seed = 1) {
+  const names = conferenceStandingRows.slice(0, 8).map((r) => r.name);
+  const seeds = descriptorsFor(names, rosters, teamsByName);
   const slots = seedBracket(seeds);
+  const nextStarter = makeStarterTracker();
   let g = 0;
   const { rounds, champion } = runSingleElim(slots, (a, b) => {
-    // higher seed (earlier in `seeds`) hosts
     const aSeed = seeds.indexOf(a);
     const bSeed = seeds.indexOf(b);
     const home = aSeed <= bSeed ? a : b;
     const away = home === a ? b : a;
-    const result = simulateGame(away, home, league, seed * 1000 + g++);
+    const homeGameRoster = buildGameRoster(home.name, home.roster, home.team, nextStarter(home));
+    const awayGameRoster = buildGameRoster(away.name, away.roster, away.team, nextStarter(away));
+    const result = simulateGame(awayGameRoster, homeGameRoster, league, seed * 1000 + g++);
     const winner = result.winner === 'home' ? home : away;
-    return { homeScore: result.homeScore, awayScore: result.awayScore, winner, homeTeam: home, awayTeam: away };
+    return { homeScore: result.homeScore, awayScore: result.awayScore, winner, homeTeam: home, awayTeam: away, boxscore: result.boxscore };
   });
   return { conference: conferenceStandingRows[0]?.conference, rounds, champion };
 }
 
-// Select the 16-team NCAA field: conference champs get auto bids, remaining
-// spots filled by RPI rank, then the full 16 reseeded 1-16 by RPI.
 export function selectField(conferenceChampions, rankings, fieldSize = 16) {
   const autoBidNames = new Set(conferenceChampions.map((c) => c.champion?.name).filter(Boolean));
   const autoBids = rankings.filter((r) => autoBidNames.has(r.name));
@@ -89,14 +108,12 @@ export function selectField(conferenceChampions, rankings, fieldSize = 16) {
   return field;
 }
 
-// Regional round: best-of-3 series, standard bracket seeding. Winners carry
-// their original NCAA seed forward (as a shallow-copied object) so the World
-// Series can reseed off it.
-export function runRegionals(fieldRows, teamsByName, league, seed = 1) {
+// Regional round: best-of-3 series, standard bracket seeding.
+export function runRegionals(fieldRows, teamsByName, rosters, league, seed = 1) {
   const ordered = fieldRows
     .slice()
     .sort((a, b) => a.seed - b.seed)
-    .map((r) => ({ ...teamsByName[r.name], seed: r.seed }));
+    .map((r) => ({ name: r.name, seed: r.seed, roster: rosters[r.name], team: teamsByName[r.name] }));
   const slots = seedBracket(ordered);
   const matchups = [];
   for (let i = 0; i < slots.length; i += 2) {
@@ -110,23 +127,29 @@ export function runRegionals(fieldRows, teamsByName, league, seed = 1) {
   return matchups;
 }
 
-// True 8-team double-elimination World Series. `entrants` must be 8 team-like
-// objects each carrying a `.seed` (lower = better) from the regional round.
+// True 8-team double-elimination World Series. `entrants` are descriptors
+// (with `.seed` from the regional round, lower = better).
 export function runWorldSeries(entrants, league, seed = 1) {
   const ordered = entrants.slice().sort((a, b) => a.seed - b.seed);
-  const wb1Slots = seedBracket(ordered); // pairs: (1v8)(4v5)(2v7)(3v6) by seed
+  const wb1Slots = seedBracket(ordered);
+  const nextStarter = makeStarterTracker();
 
   let g = 0;
   function playSingle(a, b) {
-    const home = a.seed <= b.seed ? a : b; // better seed hosts
+    const home = a.seed <= b.seed ? a : b;
     const away = home === a ? b : a;
-    const result = simulateGame(away, home, league, seed * 5000 + g++);
+    const homeGameRoster = buildGameRoster(home.name, home.roster, home.team, nextStarter(home));
+    const awayGameRoster = buildGameRoster(away.name, away.roster, away.team, nextStarter(away));
+    const result = simulateGame(awayGameRoster, homeGameRoster, league, seed * 5000 + g++);
     const winner = result.winner === 'home' ? home : away;
     const loser = winner === home ? away : home;
-    return { a, b, homeTeam: home, awayTeam: away, homeScore: result.homeScore, awayScore: result.awayScore, winner, loser };
+    return {
+      a, b, homeTeam: home, awayTeam: away,
+      homeScore: result.homeScore, awayScore: result.awayScore,
+      winner, loser, boxscore: result.boxscore,
+    };
   }
 
-  // Winners bracket
   const wb1 = [];
   for (let i = 0; i < wb1Slots.length; i += 2) wb1.push(playSingle(wb1Slots[i], wb1Slots[i + 1]));
   const wb1Winners = wb1.map((m) => m.winner);
@@ -138,10 +161,9 @@ export function runWorldSeries(entrants, league, seed = 1) {
   const wb2Losers = wb2.map((m) => m.loser);
 
   const wb3 = [playSingle(wb2Winners[0], wb2Winners[1])];
-  const wbChampion = wb3[0].winner; // still has zero losses
-  const wb3Loser = wb3[0].loser; // exactly one loss, drops to losers' bracket
+  const wbChampion = wb3[0].winner;
+  const wb3Loser = wb3[0].loser;
 
-  // Losers bracket
   const lb1 = [];
   for (let i = 0; i < wb1Losers.length; i += 2) lb1.push(playSingle(wb1Losers[i], wb1Losers[i + 1]));
   const lb1Winners = lb1.map((m) => m.winner);
@@ -154,9 +176,8 @@ export function runWorldSeries(entrants, league, seed = 1) {
   const lb3Winner = lb3[0].winner;
 
   const lb4 = [playSingle(lb3Winner, wb3Loser)];
-  const lbChampion = lb4[0].winner; // now carrying one loss
+  const lbChampion = lb4[0].winner;
 
-  // Grand Final -- the unbeaten winners'-bracket champion must lose twice.
   const gf1 = playSingle(wbChampion, lbChampion);
   let champion;
   let gf2 = null;

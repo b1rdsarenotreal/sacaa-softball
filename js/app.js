@@ -5,7 +5,8 @@ import { computeStandings, standingsByConference, overallStandings } from './eng
 import { computeRankings, top25 } from './engine/rankings.js';
 import { runConferenceTournament, selectField, runRegionals, runWorldSeries, roundLabel } from './engine/postseason.js';
 
-const STORAGE_KEY = 'sacaa-season-v1';
+const STORAGE_KEY = 'sacaa-season-v2'; // bumped from v1: roster shape changed from stat-based to ratings-based
+const SCHEMA_VERSION = 2;
 const LOGO_STORAGE_KEY = 'sacaa-custom-logos-v1';
 
 let TEAMS = [];
@@ -122,6 +123,7 @@ async function loadTeams() {
 function freshState(seed) {
   const schedule = generateSchedule(TEAMS, seed);
   return {
+    schemaVersion: SCHEMA_VERSION,
     seed,
     totalWeeks: schedule.totalWeeks,
     currentWeek: 1,
@@ -136,10 +138,20 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+// If a saved season predates the current data shape (e.g. an older version
+// of the roster/player format), silently loading it would crash the sim the
+// first time it touches a field that no longer exists. Rather than let that
+// happen, treat a schema mismatch the same as "no save" and start fresh.
 function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed.schemaVersion !== SCHEMA_VERSION) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 }
 
 function newSeason() {
@@ -170,34 +182,44 @@ function regenerateGameResult(game) {
 
 function simWeek() {
   if (state.regularSeasonComplete) return;
-  const week = state.currentWeek;
-  const weekGames = state.games.filter((g) => g.week === week && !g.played);
-  weekGames.forEach((g) => {
-    const homeGR = gameRosterFor(g.home, g.gameOfSeries);
-    const awayGR = gameRosterFor(g.away, g.gameOfSeries);
-    const r = simulateGame(awayGR, homeGR, LEAGUE, g.id * 7919 + state.seed);
-    g.played = true;
-    g.result = { homeScore: r.homeScore, awayScore: r.awayScore, innings: r.innings, awayLine: r.awayLine, homeLine: r.homeLine, mercyRule: r.mercyRule };
-  });
-  if (week >= state.totalWeeks) {
-    state.regularSeasonComplete = true;
-  } else {
-    state.currentWeek = week + 1;
+  try {
+    const week = state.currentWeek;
+    const weekGames = state.games.filter((g) => g.week === week && !g.played);
+    weekGames.forEach((g) => {
+      const homeGR = gameRosterFor(g.home, g.gameOfSeries);
+      const awayGR = gameRosterFor(g.away, g.gameOfSeries);
+      const r = simulateGame(awayGR, homeGR, LEAGUE, g.id * 7919 + state.seed);
+      g.played = true;
+      g.result = { homeScore: r.homeScore, awayScore: r.awayScore, innings: r.innings, awayLine: r.awayLine, homeLine: r.homeLine, mercyRule: r.mercyRule };
+    });
+    if (week >= state.totalWeeks) {
+      state.regularSeasonComplete = true;
+    } else {
+      state.currentWeek = week + 1;
+    }
+    saveState();
+    renderAll();
+    setMessage(`Week ${week} simulated (${weekGames.length} games).`);
+  } catch (err) {
+    console.error('Week simulation failed:', err);
+    setMessage('Something went wrong simulating that week — try "New Season" to reset.');
   }
-  saveState();
-  renderAll();
-  setMessage(`Week ${week} simulated (${weekGames.length} games).`);
 }
 
 function simToEnd() {
-  let guard = 0;
-  while (!state.regularSeasonComplete && guard < 20) {
-    simWeekQuiet();
-    guard += 1;
+  try {
+    let guard = 0;
+    while (!state.regularSeasonComplete && guard < 20) {
+      simWeekQuiet();
+      guard += 1;
+    }
+    saveState();
+    renderAll();
+    setMessage('Regular season complete.');
+  } catch (err) {
+    console.error('Season simulation failed:', err);
+    setMessage('Something went wrong simulating the season — try "New Season" to reset.');
   }
-  saveState();
-  renderAll();
-  setMessage('Regular season complete.');
 }
 
 function simWeekQuiet() {
@@ -216,23 +238,28 @@ function simWeekQuiet() {
 
 function simPostseason() {
   if (!state.regularSeasonComplete) return;
-  const standings = computeStandings(TEAMS, state.games);
-  const byConf = standingsByConference(standings);
-  const rankings = computeRankings(TEAMS, state.games);
+  try {
+    const standings = computeStandings(TEAMS, state.games);
+    const byConf = standingsByConference(standings);
+    const rankings = computeRankings(TEAMS, state.games);
 
-  const conferenceTournaments = Object.entries(byConf).map(([conf, rows], i) =>
-    runConferenceTournament(rows, TEAMS_BY_NAME, state.rosters, LEAGUE, state.seed + i * 17 + 3)
-  );
+    const conferenceTournaments = Object.entries(byConf).map(([conf, rows], i) =>
+      runConferenceTournament(rows, TEAMS_BY_NAME, state.rosters, LEAGUE, state.seed + i * 17 + 3)
+    );
 
-  const field = selectField(conferenceTournaments, rankings, 16);
-  const regionals = runRegionals(field, TEAMS_BY_NAME, state.rosters, LEAGUE, state.seed + 101);
-  const winners = regionals.map((m) => m.winner);
-  const worldSeries = runWorldSeries(winners, LEAGUE, state.seed + 202);
+    const field = selectField(conferenceTournaments, rankings, 16);
+    const regionals = runRegionals(field, TEAMS_BY_NAME, state.rosters, LEAGUE, state.seed + 101);
+    const winners = regionals.map((m) => m.winner);
+    const worldSeries = runWorldSeries(winners, LEAGUE, state.seed + 202);
 
-  state.postseason = { conferenceTournaments, field, regionals, worldSeries };
-  saveState();
-  renderAll();
-  setMessage(`National Champion: ${worldSeries.champion.name}!`);
+    state.postseason = { conferenceTournaments, field, regionals, worldSeries };
+    saveState();
+    renderAll();
+    setMessage(`National Champion: ${worldSeries.champion.name}!`);
+  } catch (err) {
+    console.error('Postseason simulation failed:', err);
+    setMessage('Something went wrong simulating the postseason — try "New Season" to reset.');
+  }
 }
 
 function outsToIp(outs) {
@@ -445,33 +472,58 @@ function renderRankings() {
 // Renders one match row for any bracket shape: byes, best-of-N series
 // (winsA/winsB present), or single games (homeScore/awayScore present).
 // `prefix` optionally labels the row (used for Grand Final Game 1/2).
-function renderMatchRow(m, container, prefix) {
-  const row = document.createElement('div');
-  row.className = 'bracket-match';
-
+// Builds the inner content of one bracket match card: two team rows stacked
+// vertically (the standard bracket convention), winner bolded, score
+// right-aligned. Used both for tree-style brackets and flat match grids.
+function matchCardHTML(m, prefix) {
   if (!m.a || !m.b) {
     const solo = m.a || m.b;
-    row.innerHTML = `<span>${solo ? `${teamLink(solo.name)} advances (bye)` : 'TBD'}</span><span class="bracket-vs"></span><span></span>`;
-    container.appendChild(row);
-    return;
+    return `<div class="bmatch-prefix">${prefix || ''}</div><div class="bmatch-row bmatch-bye">${solo ? `${teamBadge(solo.name, 18)}${teamLink(solo.name, { noBadge: true })}` : 'TBD'}<span class="bmatch-bye-tag">${solo ? 'bye' : ''}</span></div>`;
   }
-
   const aWin = m.winner?.name === m.a.name;
-  let scoreText = 'vs';
-  if (m.winsA !== undefined) scoreText = `${m.winsA}–${m.winsB}`;
-  else if (m.homeScore !== undefined) {
-    // score must read left-to-right as "a's score–b's score" to match the
-    // a (left) / b (right) column layout, regardless of who was actually home.
+  let aScore = '';
+  let bScore = '';
+  if (m.winsA !== undefined) {
+    aScore = m.winsA; bScore = m.winsB;
+  } else if (m.homeScore !== undefined) {
     const isAHome = m.homeTeam?.name === m.a.name;
-    scoreText = isAHome ? `${m.homeScore}–${m.awayScore}` : `${m.awayScore}–${m.homeScore}`;
+    aScore = isAHome ? m.homeScore : m.awayScore;
+    bScore = isAHome ? m.awayScore : m.homeScore;
   }
-
-  row.innerHTML = `
-    <span class="${aWin ? 'winner' : ''}">${prefix ? `<span class="rank-conf">${prefix}</span> ` : ''}${teamLink(m.a.name)}</span>
-    <span class="bracket-vs">${scoreText}</span>
-    <span class="${!aWin ? 'winner' : ''}">${teamLink(m.b.name)}</span>
+  return `
+    ${prefix ? `<div class="bmatch-prefix">${prefix}</div>` : ''}
+    <div class="bmatch-row ${aWin ? 'winner' : ''}">${teamBadge(m.a.name, 18)}<span class="bmatch-name">${teamLink(m.a.name, { noBadge: true })}</span><span class="bmatch-score">${aScore}</span></div>
+    <div class="bmatch-row ${!aWin ? 'winner' : ''}">${teamBadge(m.b.name, 18)}<span class="bmatch-name">${teamLink(m.b.name, { noBadge: true })}</span><span class="bmatch-score">${bScore}</span></div>
   `;
-  container.appendChild(row);
+}
+
+// Renders a full tree: one column per round, connector lines between
+// rounds, each round's matches vertically centered against their feeders
+// via flexbox. Works for any bracket whose round sizes halve each step
+// (which every bracket in this app does).
+function renderBracketTree(rounds, roundLabels) {
+  const tree = document.createElement('div');
+  tree.className = 'bracket-tree';
+  rounds.forEach((round, i) => {
+    const col = document.createElement('div');
+    col.className = 'bracket-col';
+    const label = document.createElement('div');
+    label.className = 'bracket-col-label';
+    label.textContent = roundLabels ? (roundLabels[i] || `Round ${i + 1}`) : roundLabel(i, rounds.length);
+    col.appendChild(label);
+
+    const matchesWrap = document.createElement('div');
+    matchesWrap.className = 'bracket-col-matches';
+    round.forEach((m) => {
+      const card = document.createElement('div');
+      card.className = 'bmatch';
+      card.innerHTML = matchCardHTML(m);
+      matchesWrap.appendChild(card);
+    });
+    col.appendChild(matchesWrap);
+    tree.appendChild(col);
+  });
+  return tree;
 }
 
 function renderPostseason() {
@@ -491,10 +543,10 @@ function renderPostseason() {
 
   const banner = document.createElement('div');
   banner.className = 'champion-banner';
-  banner.textContent = `National Champion: ${worldSeries.champion.name}`;
+  banner.innerHTML = `${teamBadge(worldSeries.champion.name, 40)}<span>National Champion: ${worldSeries.champion.name}</span>`;
   container.appendChild(banner);
 
-  // Conference tournaments -- full bracket, not just the champion
+  // Conference tournaments -- one visual bracket tree per conference
   const confSection = document.createElement('div');
   confSection.className = 'bracket-section';
   confSection.innerHTML = '<h3>Conference Tournaments</h3>';
@@ -502,16 +554,7 @@ function renderPostseason() {
     const confWrap = document.createElement('div');
     confWrap.className = 'conf-tourney-block';
     confWrap.innerHTML = `<div class="conf-champ-line"><strong>${ct.conference}</strong> champion: <span class="winner">${teamLink(ct.champion.name)}</span></div>`;
-    ct.rounds.forEach((round, i) => {
-      const wrap = document.createElement('div');
-      wrap.className = 'bracket-round';
-      const label = document.createElement('div');
-      label.className = 'bracket-round-label';
-      label.textContent = roundLabel(i, ct.rounds.length);
-      wrap.appendChild(label);
-      round.forEach((m) => renderMatchRow(m, wrap));
-      confWrap.appendChild(wrap);
-    });
+    confWrap.appendChild(renderBracketTree(ct.rounds));
     confSection.appendChild(confWrap);
   });
   container.appendChild(confSection);
@@ -534,57 +577,57 @@ function renderPostseason() {
   fieldSection.appendChild(table);
   container.appendChild(fieldSection);
 
-  // Regionals
+  // Regionals -- one round of best-of-3s; a card grid rather than a tree
+  // since there's nothing upstream to connect them to yet.
   const regSection = document.createElement('div');
   regSection.className = 'bracket-section';
   regSection.innerHTML = '<h3>Regionals (Best-of-3)</h3>';
-  regionals.forEach((m) => renderMatchRow(m, regSection));
+  const regGrid = document.createElement('div');
+  regGrid.className = 'bracket-grid';
+  regionals.forEach((m) => {
+    const card = document.createElement('div');
+    card.className = 'bmatch';
+    card.innerHTML = matchCardHTML(m);
+    regGrid.appendChild(card);
+  });
+  regSection.appendChild(regGrid);
   container.appendChild(regSection);
 
-  // World Series -- true double elimination: winners' bracket, losers'
-  // bracket, then the grand final (with an "if necessary" decider game).
+  // World Series -- true double elimination: winners' bracket tree, losers'
+  // bracket tree, then the grand final (with an "if necessary" decider).
   const wsSection = document.createElement('div');
   wsSection.className = 'bracket-section';
   wsSection.innerHTML = '<h3>World Series <span class="view-note">(double elimination)</span></h3>';
 
-  const wbWrap = document.createElement('div');
-  wbWrap.innerHTML = '<div class="bracket-round-label"><strong>Winners\' Bracket</strong></div>';
-  const wbLabels = ['Round 1', 'Semifinal', 'Winners\' Final'];
-  worldSeries.winnersBracket.forEach((round, i) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'bracket-round';
-    const label = document.createElement('div');
-    label.className = 'bracket-round-label';
-    label.textContent = wbLabels[i] || `Round ${i + 1}`;
-    wrap.appendChild(label);
-    round.forEach((m) => renderMatchRow(m, wrap));
-    wbWrap.appendChild(wrap);
-  });
-  wsSection.appendChild(wbWrap);
+  const wbLabel = document.createElement('div');
+  wbLabel.className = 'ws-bracket-label';
+  wbLabel.textContent = "Winners' Bracket";
+  wsSection.appendChild(wbLabel);
+  wsSection.appendChild(renderBracketTree(worldSeries.winnersBracket, ['Round 1', 'Semifinal', "Winners' Final"]));
 
-  const lbWrap = document.createElement('div');
-  lbWrap.innerHTML = '<div class="bracket-round-label"><strong>Losers\' Bracket</strong></div>';
-  const lbLabels = ['Round 1', 'Round 2', 'Round 3', 'Losers\' Final'];
-  worldSeries.losersBracket.forEach((round, i) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'bracket-round';
-    const label = document.createElement('div');
-    label.className = 'bracket-round-label';
-    label.textContent = lbLabels[i] || `Round ${i + 1}`;
-    wrap.appendChild(label);
-    round.forEach((m) => renderMatchRow(m, wrap));
-    lbWrap.appendChild(wrap);
-  });
-  wsSection.appendChild(lbWrap);
+  const lbLabel = document.createElement('div');
+  lbLabel.className = 'ws-bracket-label';
+  lbLabel.textContent = "Losers' Bracket";
+  wsSection.appendChild(lbLabel);
+  wsSection.appendChild(renderBracketTree(worldSeries.losersBracket, ['Round 1', 'Round 2', 'Round 3', "Losers' Final"]));
 
-  const gfWrap = document.createElement('div');
-  gfWrap.className = 'bracket-round';
-  gfWrap.innerHTML = '<div class="bracket-round-label"><strong>Grand Final</strong> (winners\' bracket champion must lose twice)</div>';
-  renderMatchRow(worldSeries.grandFinal.game1, gfWrap, 'Game 1');
+  const gfLabel = document.createElement('div');
+  gfLabel.className = 'ws-bracket-label';
+  gfLabel.textContent = "Grand Final (winners' bracket champion must lose twice)";
+  wsSection.appendChild(gfLabel);
+  const gfGrid = document.createElement('div');
+  gfGrid.className = 'bracket-grid';
+  const gf1Card = document.createElement('div');
+  gf1Card.className = 'bmatch';
+  gf1Card.innerHTML = matchCardHTML(worldSeries.grandFinal.game1, 'Game 1');
+  gfGrid.appendChild(gf1Card);
   if (worldSeries.grandFinal.game2) {
-    renderMatchRow(worldSeries.grandFinal.game2, gfWrap, 'Game 2 (if necessary)');
+    const gf2Card = document.createElement('div');
+    gf2Card.className = 'bmatch';
+    gf2Card.innerHTML = matchCardHTML(worldSeries.grandFinal.game2, 'Game 2 (if necessary)');
+    gfGrid.appendChild(gf2Card);
   }
-  wsSection.appendChild(gfWrap);
+  wsSection.appendChild(gfGrid);
   container.appendChild(wsSection);
 }
 

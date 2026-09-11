@@ -505,7 +505,7 @@ main {
 
 /* ---------- Postseason ---------- */
 
-.bracket-section { margin-bottom: 28px; }
+.bracket-section { margin-bottom: 32px; }
 .bracket-section h3 {
   font-family: var(--font-display);
   color: var(--field-green);
@@ -514,40 +514,136 @@ main {
 }
 
 .conf-tourney-block {
-  margin-bottom: 20px;
-  padding-bottom: 12px;
+  margin-bottom: 28px;
+  padding-bottom: 20px;
   border-bottom: 1px dashed var(--line);
 }
 
+.conf-tourney-block:last-child { border-bottom: none; }
+
 .conf-champ-line {
   font-size: 0.95rem;
-  padding: 4px 0 10px;
+  padding: 4px 0 14px;
 }
 
-.bracket-round { margin-bottom: 14px; }
-.bracket-round-label {
-  font-size: 0.78rem;
+.ws-bracket-label {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--field-green);
+  margin: 18px 0 10px;
+}
+
+/* --- Visual bracket tree: one column per round, connector lines between --- */
+
+.bracket-tree {
+  display: flex;
+  gap: 36px;
+  overflow-x: auto;
+  padding: 4px 4px 20px;
+}
+
+.bracket-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 14px;
+  min-width: 190px;
+  flex-shrink: 0;
+}
+
+.bracket-col-label {
+  font-size: 0.72rem;
   text-transform: lowercase;
   color: var(--ink-soft);
-  margin-bottom: 6px;
+  text-align: center;
+  margin-bottom: 2px;
 }
 
-.bracket-match {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 10px;
+.bracket-col-matches {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 20px;
+  flex: 1;
+}
+
+/* --- Match card (shared by tree columns and flat grids) --- */
+
+.bmatch {
+  position: relative;
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 8px 12px;
-  margin-bottom: 6px;
-  font-size: 0.88rem;
+  padding: 7px 10px;
+  font-size: 0.82rem;
   box-shadow: var(--shadow-xs);
 }
 
-.bracket-match .winner { font-weight: 700; color: var(--field-green); }
-.bracket-vs { color: var(--ink-soft); font-size: 0.78rem; }
+.bracket-col:not(:last-child) .bracket-col-matches .bmatch::after {
+  content: '';
+  position: absolute;
+  right: -19px;
+  top: 50%;
+  width: 18px;
+  height: 2px;
+  background: var(--line);
+}
+
+.bracket-col:not(:first-child) .bracket-col-matches .bmatch::before {
+  content: '';
+  position: absolute;
+  left: -19px;
+  top: 50%;
+  width: 18px;
+  height: 2px;
+  background: var(--line);
+}
+
+.bmatch-prefix {
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 3px;
+}
+
+.bmatch-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 0;
+}
+
+.bmatch-row:first-of-type { border-bottom: 1px solid var(--line); }
+
+.bmatch-row.winner { font-weight: 700; color: var(--field-green); }
+
+.bmatch-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bmatch-score {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  min-width: 1.4em;
+  text-align: right;
+}
+
+.bmatch-bye { color: var(--ink-soft); font-style: italic; }
+.bmatch-bye-tag { font-size: 0.7rem; margin-left: auto; }
+
+/* --- Flat grid (regionals, grand final -- no upstream round to connect to) --- */
+
+.bracket-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
 
 .champion-banner {
   background: linear-gradient(135deg, var(--field-green) 0%, var(--field-green-dark) 100%);
@@ -555,7 +651,7 @@ main {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 1.3rem;
-  padding: 20px 24px;
+  padding: 16px 24px;
   border-radius: var(--radius-md);
   margin-bottom: 24px;
   box-shadow: var(--shadow-md);
